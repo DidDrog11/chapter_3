@@ -1,0 +1,152 @@
+---
+title: "Understanding the structure of rodent species assemblages and land use change on the occurrence of the rodent host of Lassa Fever."
+author:
+  - name: "David Simons"
+    url: https://github.com/diddrog11/rodent_trapping
+    affiliation: The Royal Veterinary College, London, UK
+    affiliation_url: https://www.rvc.ac.uk
+    orcid_id: 0000-0001-9655-1656
+date: "`r Sys.Date()`"
+output:
+  # distill::distill_article:
+  #   self_contained: false
+  #   toc: true
+   html_document
+  # word_document
+bibliography: citations.bib
+categories:
+  - Lassa
+---
+
+```{r setup, include=FALSE, quietly=TRUE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	message = FALSE,
+	warning = FALSE
+)
+library(here)
+```
+
+# Abstract
+
+*Lassa mammarenavirus*, the causative agent of Lassa fever is endemic to Eastern Sierra Leone. The principal reservoir species (*Mastomys natalensis*), is considered abundant in human dominated habitats, however, rodent species' assemblages in this context are not well described. We conducted three monthly rodent trapping to describe these rodent assemblages, their structure and associations with land use. We model the effect of land use on rodent species occurrence along a land use gradient and produce species distribution maps of the study region to understand current and potential *Lassa mammarenavirus* spillover hazard.
+
+We found that *Mastomys natalensis* were concentrated in areas of human habitation, with co-occurrence with invasive commensal generalist species (*Rattus rattus* and *Mus musculus*). We found that other rodent species' within these assemblages diversify into distinct habitat niches, and that during periods of increased competition for resources, generalist species were more abundant than specialist species. Species distribution maps identified areas of expected occurrence and non-occurrence of our species of interest *Mastsomys natalensis* and potential geographic isolation of populations.
+
+We identify a complex system within rodent species assemblages co-located with human communities in Eastern Sierra Leone. We show the habitat occupancy patterns for each species of interest and use these observations to produce species distribution maps that explain the limited geographic radiation of outbreaks of Lassa fever. We anticipate that this data will help inform higher resolution models of rodent distributions across West Africa, which are of particular importance for rodent zoonotic diseases such as Lassa fever. These data highlight the spatially heterogeneous distribution of important rodent species with implications for public health interventions to reduce the impact of Lassa fever.
+
+# Introduction
+
+Lassa fever, caused by *Lassa mammarenavirus* is an endemic zoonotic infectious disease in West Africa. It has been estimated that there are between 100,000 and 900,000 annual infections [@mccormick_prospective_1987; @basinski_bridging_2021]. The majority of these remain undetected, with an estimated 80% of infections being pauci- or asymptomatic [@mccormick_prospective_1987]. However, outcomes in confirmed cases remains poor, with a case fatality rate of 18.5% among confirmed cases reported between 2017 and 2020 in Nigeria [@yaro_infection_2021]. Changing land use and climate are hypothesised to increase the suitable area for both the primary reservoir of *Lassa mammarenavirus* (*Mastomys natalensis*) and environmental suitability for the virus itself increasing opportunities for viral spillover into growing human populations [@redding_environmental-mechanistic_2016; @redding_geographical_2021; @klitting_predicting_2021]. Lassa fever is currently considered endemic in eight West African countries (Nigeria, Guinea, Sierra Leone, Liberia, Mali, Benin, Ghana and Togo) [@world_health_organisation_lassa_2022]. The suitability of both habitat type and climate for both the primary reservoir and the virus is likely heterogeneous across this region explaining the clustering of Lassa fever endemic within countries.
+
+*M. natalensis* is found in 13 of 14 continental West African nations (not reported from Gambia) and all other sub-Saharan African nations [@iucn_iucn_2016]. It is considered a generalist rodent and is abundant in and around areas of human dominated landscapes where it is considered a pest species [@leirs_productivity_1993]. The introduction of non-native generalist rodent species (e.g. *Rattus rattus* and *Mus musculus*) has led to increased competition for resources and displacement of *M. natalensis* from locations within its natural range [@cuypers_no_2017; @garba_spatial_2014]. Population dynamics within this reservoir species, correlated with resource availability and rainfall, are associated with outbreaks of Lassa fever in human populations [@redding_geographical_2021]. Few studies to date have used longitudinal, high intensity rodent trapping to characterise rodent species assemblages in Lassa fever endemic regions (**ideally reference scoping review manuscript**).
+
+Understanding the true spatial distribution of *M. natalensis* and their population dynamics in the context of competing rodent species is vital to guide investigations of the epidemiology of Lassa fever [@basinski_bridging_2021]. Further, description of rodent abundance and diversity along land use gradients are required to better understand the spatio-temporal hazard of Lassa fever outbreaks under changing land use pressures [@klitting_predicting_2021]. Together, this information can be used to guide the implementation of contextually relevant public health responses, allocation of healthcare resources and the identification of suitable sites for future Lassa fever vaccine studies.
+
+Here, we use data from a large, standardised, rodent trapping survey conducted in the Lassa fever endemic region of Eastern Sierra Leone along a land use gradient to provide novel evidence on the impact of land use on the occurrence of *M. natalensis* and rodent species assemblage structure. We first report the occurrence of rodent species at our trapping sites and describe these species assemblages, producing networks of co-located species. Second, we assess the association of land use with the probability of species occupancy at trapping sites and species richness. Third, we produce species distribution maps for *M. natalensis* and the species with which it competes to investigate the potential alterations to these species assemblages based on projected climate and land use change to understand how future land use change may modify the hazard of Lassa fever outbreaks.
+
+# Methods
+
+## Study area
+
+We conducted rodent trapping at 7 trapping sites within 4 villages in the Lassa fever endemic zone of the Eastern Province of Sierra Leone. We surveyed the rodent community in forested, fallow, agricultural and areas of human occupation along an anthropogenic land use gradient. Eastern Sierra Leone has undergone significant deforestation and conversion to agricultural land, currently X% is designated as primary and secondary forest, Y% as agricultural land and Z% as areas of human occupation. The villages were enrolled based on accessibility to the sites during all seasons, discussions with the Lassa fever outreach team at Kenema Government Hospital and acceptability of the protocol to the village community. Villages and trapping sites were selected to be representative at the study level for land use in Eastern Sierra Leone.
+
+```{r trap-locations, layout = "l-page", fig.cap = "Figure 1. A) Locations of study villages in Eastern Province, Sierra Leone. B) Trap sites in Lalehun village. C) Trap sites in Seilama village. D) Trap sites in Lambayama. E) Trap sites in Baiama village. The trap success rate in each trap sites for all study visits is shown through the colour associated with each trap site. Single points represent the location of a single trap."}
+
+# knitr::include_graphics(here("output", "figures", "fig1_combined.png"))
+
+```
+
+Trap sites were geolocated for repeated trapping activities, with changes to land use at the trapping site were recorded at each visit. Within each study site 49 individual Sherman traps (**size and reference**) were baited with a locally produced mixture of oats, palm oil and dried fish for 4 consecutive nights. Each morning the traps were checked and closed for the day prior to re-baiting during the evening.
+
+## Data collection
+
+### Land use classification
+
+Land use classification was obtained from a global map of IUCN matched habitat types using 2015 satellite images [@jung_global_2020]. We aggregated land use to forest, vegetation (including shrubland, savanna and grassland), agricultural (arable land, pastures and plantations) and urban areas (rural and urban built-up land). At the trapping sites habitat classifications were ground-truthed to observed land use. Using this composite layer, we calculated the proportion of land classifications in a 50m buffer (**or 100m**) to represent the landscape from which rodents may be sampled from based on their mobility [ref.]. 
+
+### Morphological species classification
+
+Trapped rodents were sedated with halothane and euthanised prior to obtaining morphological measurements and samples of blood and tissue (**reference to RVC and local ethics approval**) following published guidance [@fichet-calvet_chapter_2014]. Morphological speciation in the field was performed using a dichotomous key produced from two available resources to identify rodents to species or genus (**will place in supplementary**) [@happold_mammals_2013; @monadjem_rodents_2015]. Rodents were sexed based on external and internal genitalia. Age estimation was performed through, description of the rodents reproductive status (identification of perforate or imperforate vagina, scarring from prior embryo development, current pregnancy status or descent of testes and seminal vesicle development) and weighing of dried eye lenses. Carcasses were disposed and processed in the field to eliminate risk of pathogen transmission. 
+
+### Molecular species classification
+
+Molecular speciation was performed on formalin fixed tissue samples (**insert further details on method**) that were stored at -20°C until processing. Genomic DNA was extracted using QIAGEN DNAeasy kits. Species specific PCR primers were used to positively identify *M. natalensis* and *M. erythroleucus* which are indistinguishable based on morphology. All other trapped individuals were positively identified by Sanger sequencing on CytB PCR products.
+
+## Statistical analysis
+
+### Rodent species networks
+
+We produce rodent species networks at multiple temporal and geographic scales. These networks are weighted, uni-directional graphs, where the weights correspond to the number of individuals of each species trapped within the geographic scale of interest. First, the network of rodents trapped within 50m radius of each individual is generated within a study visit. Second, a network of species within the same habitat class is generated within a study visit. Third, a network of individuals trapped within 50m across all study visits is generated. Finally, a network of species within the same habitat class across all study visits is produced. These networks will be compared using ... [@tantardini_comparing_2019]
+
+### Rodent occurrence and species assemblage structure
+
+We obtained X trap-nights over Y trapping visits between 2020-11-30 and YYYY-MM-DD. Trapping effort was assessed using species accumulation curves (**Supplementary figure**), suggesting adequate effort to detect rodent species at each village site. We constructed detection/non-detection histories for all identified rodent species, assigning "1" when the species was detected and "0" otherwise. We augmented data by creating all-zero detection histories of rodent species that have been previously described as occurring in the region and were never recorded in our study.
+
+We describe species assemblages at multiple geographic scales. First, all species identified within a single trap site. Second, all species identified within a village (i.e. an area in when rodents would be expected, in the absence of habitat preference, to be able to diffuse across). Third, all species identified within a single habitat type across multiple trapping sites and villages.
+
+We describe the age-sex population structure of each species trapped and variation in their abundance over the study period.
+
+### Estimating the effect of land use on species occurrence and richness
+
+First, we adopted a Bayesian multi-species occupancy framework to analyse rodent trapping data. We implemented a model to estimate occupancy and species richness in each habitat type studied. In the detection component of the model, we included the monthly precipitation during the study visit to account for variation in rodent foraging behaviour due to seasonal effects.
+
+  * Probability of occurrence ~ (species_specific_intercept * Forested) + (species_specific_intercept * Agricultural) + (species_specific_intercept * Housing)
+  * Probability of detection ~ (species_specific_intercept * monthly_precipitation) (**Difficult to tease out whether this is a detection or occurrence factor**)
+
+Using this model, we calculate the effect of landuse as the difference in occupancy probability for each species between each of the four land use classifications. Only estimates for species with at least X records to avoid inference from limited data. Occupancy is interpreted here as the species' probability of being detected through a successful trapping event during the study. We estimate species richness in each habitat type by obtaining the sum of species at a trapping site for each iteration of the Bayesian sampling process to compare rodent assemblage responses to land use classification.
+
+### Species distribution maps for current land use classifications and potential future change
+
+We adopted a Bayesian additive regression tree (BART) approach to predict species distributions for each identified species of interest (*Mastomys natalensis* and competing commensal rodents *Rattus rattus*, *Mus musculus* and *Praomys rostratus*). Similar to other classification tree methods BART functions by producing a set of decision trees that explain different components of variance in the outcome variable (presence of the species of interest) with the additional benefit of capturing model uncertainty. Covariates will include, land use classification, mean temperature, isothermality, precipitation and human population density. Variable importance plots will be produced for the final models for each species. These species distribution models will be examined to investigate the spatial overlap between competing species' distribution and the impact this may have on potential expansion of the Lassa fever endemic region (i.e. mus or rattus displacing mastomys from suitable habitats).
+
+Using projected land use change/climate change we will produce future potential species distribution models for these species to understand how future projected land use change and climate change may impact the distribution of these species and future hazard of Lassa fever outbreaks.
+
+
+  ---
+  **IGNORE BELOW**
+  ---
+
+# Methods
+
+What is the expected relationship between land use and species diversity/composition?
+How are generalist and specialist species defined?
+Networks of species.
+
+# Results
+
+## Rodent occurrence and species assemblage structure
+
+Trapping visits to villages occurred at three monthly intervals for at least two years. One village (Bambawo) was removed from the study due to concerns raised by the study team over equipment security. 
+
+```{r study-activity, layout = "l-page", fig.cap = "Figure 2. Timeline of trapping activity at village sites. Intensity of the colour relates to the number of trap nights obtained during the trapping visit. The blue shaded area represents the rainy season in Eastern Sierra Leone (monthly precipitation >300mm)"}
+
+# knitr::include_graphics(here("output", "figures", "timeline_plot.png"))
+
+```
+  
+
+  * Description of presence/pseudo-absence of species across study site and habitat type by season
+  * Describe the assemblages of different species across study site and habitat type by season
+  
+## Estimating the effect of land use on species occurrence and richness
+  
+  * Model seasonal change in a) relative abundance of all rodents and b) number of species by seasonal indicators and proportions of different land use types as covariates
+  * Species distribution maps will be produced
+  * Difference between observed and expected will be investigated by comparing to observations of other species within these distributions
+  
+## Species distribution maps for current land use classifications and potential future change
+
+  * Apply these species distribution models to expected future scenarios
+
+# Discussion
+
+# Conclusion
+
+```{r species-accumulation, layout = "l-page", fig.cap = "Supplementary figure 1. Species accumulation curves for each village site"}
+
+# knitr::include_graphics(here("output", "figures", "species_accumulation_plot.png"))
+
+```
+
+# References
