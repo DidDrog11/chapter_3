@@ -11,8 +11,9 @@ output:
   # distill::distill_article:
   #   self_contained: false
   #   toc: true
-   html_document
+  # html_document
   # word_document
+  pdf_document
 bibliography: citations.bib
 categories:
   - Lassa
