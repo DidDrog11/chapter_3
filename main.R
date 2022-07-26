@@ -10,7 +10,7 @@ source(here("R", "descriptive.R"))
 # Produce network analysis
 source(here("R", "network.R"))
 
-# Produced multi-level occupancy models
+# Produce multi-species occupancy models
 source(here("R", "models.R"))
 
 # Produce species distributions
