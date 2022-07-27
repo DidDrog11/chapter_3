@@ -68,6 +68,7 @@ library(tidyverse)
 library(spOccupancy)
 library(coda)
 library(stars)
+library(lubridate)
 set.seed(102)
 ```
 
@@ -85,6 +86,7 @@ oven <- hbef2015 #duplicate data prior to subsetting
 oven$y <- oven$y[species == "OVEN", , ] #subset on the first dimension of the y array (the species name)
 table(oven$y) #how many detection sites are there at the site-replicate combinations
 ```
+# Single species occupancy models
 
 ## Model formula
 
@@ -130,6 +132,8 @@ n.chains <- 3
 ```
 
 `verbose = TRUE` and `n.report = 1000` results in progress of the MCMC being reported every 1000th MCMC iteration. For this example k-fold cross validation isn't used. Not specifying these arguments tells the function not to perform this.
+
+## Run single-species occupancy model
 
 ```{r run-model-1, include=TRUE}
 out <- PGOcc(occ.formula = oven.occ.formula,
@@ -188,7 +192,7 @@ summary(ppc.out)
 
 This can also be visualised.
 
-``` {r visual-bayesian-p-1, include = TRUE}
+``` {r visual-bayesian-p-1a, include = TRUE}
 
 ppc.df <- tibble(fit = ppc.out$fit.y,
                  fit.rep = ppc.out$fit.y.rep,
@@ -202,7 +206,7 @@ lines(ppc.df$fit, ppc.df$fit, col = 'black')
 
 The above plot shows most of the fit statistics are smaller for the replicate data than the actual dataset. However, this approach is not always a great option as individual data points can have an overbearing influence on the summary value. Instead of summing across all data points, `ppcOcc()` also provides discrepancy measures on a "grouped" point-by-point basis. The resulting object contains `fit.y.group.quants` and `fit.y.rep.group.quants` which contain quantiles of the posterior distributions for the discrepancy measures of each grouped data point. 
 
-``` {r visual-bayesian-p-2, include = TRUE}
+``` {r visual-bayesian-p-1b, include = TRUE}
 
 diff.fit <- ppc.out$fit.y.rep.group.quants[3, ] - ppc.out$fit.y.group.quants[3, ]
 plot(diff.fit, pch = 19, xlab = "Site ID", ylab = "Replicate - True Discrepancy")
@@ -220,7 +224,7 @@ waicOcc(out)
 
 We can compare this to a model where we assume occurrence is constant with no inclusion of elevation in the model. 
 
-``` {r run-model-2, include = TRUE}
+``` {r run-model-1b, include = TRUE}
 
 out.null <- PGOcc(occ.formula = ~ 1,
                   det.formula = oven.det.formula,
@@ -331,3 +335,556 @@ ggplot() +
        title = 'SD OVEN occurrence probability') +
   theme_bw()
 ```
+
+# Single species spatial occupancy models
+
+`spPGOcc()` fits single species spatial occupancy models, where spatial autocorrelation is accounted for using a spatial Gaussian process, either as a full Gaussian process or an NNGP. This will use the same approach as above while making the model spatially explicit.
+
+Coordinates need to be provided to the `spPGOcc()` function in addition to those outlined above. `inits` include additional parameters associated with the spatial random effects. These include:
+
+  + `sigma.sq` the spatial variance parameter
+  + `phi` the spatial range parameter
+  + `w` the latent spatial random effects at each site
+  + `nu` the spatial smoothness parameter, which is only specified if adopting a Matern covariance function
+
+Four spatial covariance models (exponential, spherical, gaussian and matern) are supported and specified in the `cov.model` argument. The default is exponential which is commonly used in ecology. Model selection criteria such as WAIC or k-fold can be used to select which covariance function to use. 
+
+## Initial values
+
+The default values for `phi`, `sigma.sq` and `nu` are set to random values from the prior distribution. The `phi` paramater is the most sensitive to initial values. In general, the spatial range parameter will have poor mixing andtake longer to converge than the rest of the parameters in the model. To provide a range of `phi` the mean distance between points in the data can be used, divided by 3. This is the effective range, or the distance at which the residual spatial correlation between two sites drops to 0.005. Generally the inital run should use default values. Here, `sigma.sq` will be set to 2, which corresponds to an small spatial variance. 
+
+``` {r specifying-initial-values-1, include=TRUE}
+
+# distance between sites
+dist.hbef <- dist(oven$coords)
+
+cov.model <- "exponential"
+
+oven.inits <- list(alpha = 0,
+                   beta = 0,
+                   z = apply(oven$y, 1, max, na.rm = TRUE),
+                   sigma.sq = 2,
+                   phi = 3/mean(dist.hbef),
+                   w = rep(0, nrow(oven$y)))
+```
+
+## MCMC tuning parameters
+
+The next arguments (`n.batch`, `batch.length` and `accept.rate`) are all related to the form of MCMC sampler used. In this approach, the total number of MCMC samples are broken up into a set of batches, where each batch has a specific number of MCMC samples. The total number of MCMC samples in this format is `n.batch * batch.length`. Here, the model is run for 10,000 MCMC samples so `batch.length = 25` (generally recommended) and `n.batch = 400`.
+
+```{r mcmc-setup-2, include=TRUE}
+batch.length <- 25
+n.batch <- 400
+n.burn <- 3000
+n.thin <- 2
+n.chains <- 3
+```
+
+Importantly, an acceptance rate and a tuning parameter for the spatial range parameter are required. These are features of an adaptive algorithm used to sample these parameters. This approach proposes new values for `phi` and `nu`, compares them statistically to previous values in order to determine whether these should be accepted or reverted to the old one. The `accept.rate` argument specifies the ideal proportion of times in which the newly proposed values are accepted. Prior research has suggested that 43% will lead to optimal mixing and convergence. The default value is thus `accept.rate = 0.43`.
+
+``` {r mcmc-tuning-2, include = TRUE}
+
+oven.tuning <- list(phi = 1)
+accept.rate = 0.43 #default
+
+```
+
+## Prior specification
+
+Priors are specified as a list in the argument `priors`. Standard recommendations from the spatial statistics literature suggests an inverse gamma prior for the spatial variance parameter `sigma.sq` (called `sigma.sq.ig` in the list) and uniform priors for the spatial decay parameter `phi` and smoothness parameter `nu`, with the tags `phi.unif` and `nu.unif`. The hyperparameters of the inverse Gamma are passed as a vector of length 2 with the first and second elements corresponding to the shape and scale. The lower and upper bounds of the uniform distribution are passed as a two element vector for the uniform priors. The default prior hyperparameter values for the spatial variance ${\sigma}^2$ are a shape parameter of 2 and scale parameter of 1. This weakly informative prior suggests a prior mean of 1 for the spatial variance, which is a moderately small amount of spatial variation. For the spatial decay parameter, the default approach here is to set the lower and upper bounds of the uniform prior based on the minimum and maximum distances between sites in the data. With the lower bound specified as `3/max` and upper bound to `3/min`. This equates to a prior that states the spatial autocorrelation in the data could only exist between sites that very close together, or could span across the entire observed study area. 
+
+``` {r specifying-priors-2, include = TRUE}
+
+min.dist <- min(dist.hbef)
+max.dist <- max(dist.hbef)
+
+oven.priors <- list(beta.normal = list(mean = 0, var = 2.72),
+                    alpha.normal = list(mean = 0, var = 2.72),
+                    sigma.sq.ig = c(2, 1),
+                    phi.unif = c(3/max.dist, 3/min.dist))
+
+```
+
+## Spatial model process
+
+The parameters `NNGP`, `n.neighbours` and `search.type` relate to how the model is fit. NNGP is more computationally efficient and is specified as `NNGP = TRUE`, with `FALSE` using a regular Gaussian process. Generally the defaults of `n.neighbours` and `search.type` used in the NNGP are set to the defaults (`n.neighbours = 15` and `search.type = "cb`).
+
+## Run single-species spatial occupancy model
+
+The model is now fit without k-fold cross-validation. In this example `n.neighbours = 5` as this approximates a full Gaussian process.
+
+``` {r run-model-2, include = TRUE}
+
+n.omp.threads <- 1
+verbose <- TRUE
+n.report <- 100
+
+out.sp <- spPGOcc(occ.formula = oven.occ.formula, 
+                  det.formula = oven.det.formula, 
+                  data = oven, 
+                  inits = oven.inits, 
+                  n.batch = n.batch, 
+                  batch.length = batch.length, 
+                  priors = oven.priors, 
+                  cov.model = cov.model, 
+                  NNGP = TRUE, 
+                  n.neighbors = 5,
+                  tuning = oven.tuning, 
+                  n.report = n.report, 
+                  n.burn = n.burn, 
+                  n.thin = n.thin, 
+                  n.chains = n.chains)
+
+```
+
+The summary of the `spPGOcc` object is below.
+
+``` {r summarise-2, include = TRUE}
+
+summary(out.sp)
+
+```
+
+The majority of Rhat values are less than 1.1, however, for a full analysis the model should be run longer to ensure the spatial variance parameter (`sigma.sq`) has converged. The ESS of the spatial covariance parameters are low which indicates limited mixing of these parameters. This is common in spatial models. The object contains posterior samples for all parameters, with the spatial parameters stored in `theta.samples`.
+
+## Posterior predictive checks
+
+The `ppcOcc()` function is used to again. This time grouped by replicate (survey occasion, `group = 2`), instead of site.
+
+``` {r posterior-predictive-check-2, include = TRUE}
+
+ppc.sp.out <- ppcOcc(out.sp, fit.stat = "freeman-tukey", group = 2)
+summary(ppc.sp.out)
+
+```
+
+The Bayesian p-value indicates adequate fit.
+
+## Model selection with WAIC and k-fold cross-validation
+
+The WAIC can be compared to the non-spatial model to assess the benefit of incorporating the spatial random effects in the occurrence model.
+
+``` {r WAIC-2, include = TRUE}
+
+waicOcc(out.sp) #spatial model
+waicOcc(out) #non-spatial model
+
+```
+
+k-fold cross-validation is performed similarly to above.
+
+``` {r k-fold-cross-validation-2, include = TRUE}
+
+out.sp.k.fold <- spPGOcc(occ.formula = oven.occ.formula, 
+                         det.formula = oven.det.formula, 
+                         data = oven, 
+                         inits = oven.inits, 
+                         n.batch = n.batch, 
+                         batch.length = batch.length, 
+                         priors = oven.priors, 
+                         cov.model = cov.model, 
+                         NNGP = TRUE, 
+                         n.neighbors = 5,
+                         tuning = oven.tuning, 
+                         n.report = n.report, 
+                         n.burn = n.burn, 
+                         n.thin = n.thin, 
+                         n.chains = n.chains,
+                         k.fold = 4, 
+                         k.fold.threads = 6)
+
+summary(out.sp.k.fold)
+
+waicOcc(out.sp) #spatial model
+waicOcc(out.sp.k.fold) #spatial model with cross-validation
+
+```
+## Prediction
+
+Out of sample prediction is performed with `predict()`, this is more computationally intensive than for non-spatial models. 
+
+``` {r prediction-2, include = TRUE}
+
+coords.0 <- as.matrix(hbefElev[, c("Easting", "Northing")])
+
+out.sp.pred <- predict(out.sp.k.fold, X.0, coords.0, verbose = FALSE)
+
+plot.dat <- tibble(x = hbefElev$Easting, 
+                   y = hbefElev$Northing, 
+                   mean.psi = apply(out.sp.pred$psi.0.samples, 2, mean), 
+                   sd.psi = apply(out.sp.pred$psi.0.samples, 2, sd))
+
+dat.stars <- st_as_stars(plot.dat, dims = c('x', 'y'))
+
+ggplot() + 
+  geom_stars(data = dat.stars, aes(x = x, y = y, fill = mean.psi)) +
+  scale_fill_viridis_c(na.value = 'transparent') + 
+  labs(x = 'Easting', y = 'Northing', fill = '', 
+       title = 'Mean OVEN occurrence probability') +
+  theme_bw()
+
+ggplot() + 
+  geom_stars(data = dat.stars, aes(x = x, y = y, fill = sd.psi)) +
+  scale_fill_viridis_c(na.value = 'transparent') + 
+  labs(x = 'Easting', y = 'Northing', fill = '', 
+       title = 'SD OVEN occurrence probability') +
+  theme_bw()
+
+```
+
+The spatial model here identifies areas with low OVEN occurrence that are not captured in the non-spatial model.
+
+# Multi species occupancy models
+
+The same syntax is used for `msPGOcc()` functions as for single-species models. For multi-species models, the multi-species detection-nondetection data stored in `y` is now a three-dimensional array with domensions corresponding to species, sites and replicates. 
+
+## Model formula
+
+The same formula as above is used.
+
+``` {r formula-specification-3, include = TRUE}
+
+occ.ms.formula <- ~ scale(Elevation) + I(scale(Elevation)^2)
+det.ms.formula <- ~ scale(day) + scale(tod) + I(scale(day)^2)
+
+```
+
+## Initial values
+
+For multi-species occupancy models, additional values are included for community-level and species-level parameters:
+
+  + `alpha.comm`, community-level detection coefficients
+  + `beta.comm`, community-level occurrence coefficients
+  + `alpha`, species-level detection coefficients
+  + `beta`, species-level occurrence coefficients
+  + `tau.sq.alpha`, community-level detection variance parameters
+  + `tau.sq.beta`, community-level occurrence variance parameters
+  + `z`, latent occurrence variables for all species
+
+The initial values for the latent occurrence matrix are specified as a matrix with $N$ rows corresponding to the number of species and $J$ columns corresponding to the number of sites.
+
+``` {r specifying-initial-values-3, include = TRUE}
+
+N <- dim(hbef2015$y)[1]
+ms.inits <- list(alpha.comm = 0,
+                 beta.comm = 0,
+                 beta = 0,
+                 alpha = 0,
+                 tau.sq.beta = 1,
+                 tau.sq.alpha = 1,
+                 z = apply(hbef2015$y, c(1, 2), max, na.rm = TRUE))
+```
+
+## Prior specification
+
+In a multi-species model the community-level coefficients need specifying rather than species-level effects. For non-spatial models these are specified with the following tags in a list:
+
+  + `beta.comm.normal`, normal prior on the community-level occurrence mean effects
+  + `alpha.comm.normal`, normal prior on the community-level detection mean effects
+  + `tau.sq.beta.ig`, inverse-Gamma prior on the community-level occurrence variance paramaters
+  + `taus.sq.alpha.ig`, inverse-Gamma prior on the community-level detection variance parameters
+
+Each contains a list with elements corresponding to the mean and variance for normal priors and the scale and shape for inverse-Gamma priors. By default the hyperparameter values for the community-level meanse are set with a mean of 0 and variance of 2.72. For the community-level variance parameters the scale and shape are set to 0.1, which results in a weakly informative prior on the community-level variances. This may lead to shrinkage of the community-level variance towards zero, so that all species will have fairly similar values for the species-specific covariate effect. The impact of this prior on the species specific covariate effects can be explored by running single-species occupancy models and assessing how large the differences in the estimated species-specific effects are between the single-species model estimates and those from the multi-species model.
+
+
+```{r specifying-priors-3, include=TRUE}
+ms.priors <- list(beta.comm.normal = list(mean = 0, var = 2.72),
+                  alpha.comm.normal = list(mean = 0, var = 2.72),
+                  tau.sq.beta.ig = list(a = 0.1, b = 0.1),
+                  alpha.sq.beta.ig = list(a = 0.1, b = 0.1))
+```
+
+## Run multi-species occupancy model
+
+The settings for the MCMC are set within the below model function.
+
+``` {r run-model-3, include = TRUE}
+
+out.ms <- msPGOcc(occ.formula = occ.ms.formula, 
+                  det.formula = det.ms.formula, 
+                  data = hbef2015, 
+                  inits = ms.inits, 
+                  n.samples = 30000, 
+                  priors = ms.priors, 
+                  n.omp.threads = 1, 
+                  verbose = TRUE, 
+                  n.report = 6000, 
+                  n.burn = 10000,
+                  n.thin = 50, 
+                  n.chains = 3)
+
+```
+
+For multi-species objects, when using `summary()` the level of paramters to summarise must be specified. This is done by using the argument `level`, which takes, `community`, `species` or `both`. 
+
+``` {r summarise-3, include = TRUE}
+
+summary(out.ms)
+
+```
+
+Looking at the community-level variance parameters, we see substantial variability in the effect of elevation across the community. 
+
+## Posterior predictive checks
+
+`ppcOcc()` can be used to perform posterior predictive checks and summarise these with `summary()`.
+
+``` {r posterior-predictive-check-3, include = TRUE}
+
+ppc.ms.out <- ppcOcc(out.ms, "chi-squared", group = 1)
+
+summary(ppc.ms.out)
+
+```
+
+This suggests adequate model fit at the community level, but there is lear variation in the values for each individual species. This can be explored further in a more complete analysis.
+
+## Model selection with WAIC and k-fold cross-validation
+
+```{r WAIC-3, include = TRUE}
+
+waicOcc(out.ms)
+
+```
+
+k-fold cross-validation is repeated
+
+``` {r k-fold-cross-validation-2, include = TRUE}
+
+out.ms.k.fold <- msPGOcc(occ.formula = occ.ms.formula, 
+                         det.formula = det.ms.formula, 
+                         data = hbef2015, 
+                         inits = ms.inits, 
+                         n.samples = 30000, 
+                         priors = ms.priors, 
+                         n.omp.threads = 1, 
+                         verbose = TRUE, 
+                         n.report = 6000, 
+                         n.burn = 10000,
+                         n.thin = 50, 
+                         n.chains = 3,
+                         k.fold = 4, 
+                         k.fold.threads = 6)
+
+summary(out.ms.k.fold)
+
+waicOcc(out.ms) #multi-species model
+waicOcc(out.ms.k.fold) #multi-species model with cross-validation
+
+```
+
+For multi-species models, a separate deviance measure is reported for each species as a measure of predictive capacity, allowing for comparisons across multiple models for individual species, as well as for the entire community.
+
+## Prediction
+
+# Formatting data for use
+
+## Format detection-nondetection
+
+This is a walkthrough on how to format the data appropriately using the HBEF data used above.
+
+```{r data-import, include = TRUE}
+
+hb.dat <- read.csv(url("https://portal.edirepository.org/nis/dataviewer?packageid=knb-lter-hbr.178.3&entityid=eecb146279aa290af2292d75d3ba0f8b"))
+# Take a look at the data set
+str(hb.dat)
+
+```
+
+Each row corresponds to an individual bird that was detected during a point count survey at a specific site (plot) on a given date. For this example data from a single year will be used, 2014 and only from the first three replicates, site 277 is also removed.
+
+```{r filtering-on-date, include = TRUE}
+
+hb.2014 <- hb.dat %>%
+  mutate(Date = ymd(Date),
+         Year = year(Date)) %>%
+  filter(Year == 2014,
+         Replicate %in% c("1", "2", "3"),
+         Plot != 277)
+
+
+```
+
+To produce the format for a multi-species occupancy models, the detection-nondetection data must be in the format of a three-dimensional array including species, site and replicate. A three-dimensional array is a series of stacked matrices. First the raw data is converted to long format, where each row corresponds to the total number of individuals of a given species observed at a given site during a given point count survey.
+
+```{r convert-to-long, include = TRUE}
+
+y.long <- hb.2014 %>%
+  group_by(Plot, Date, Replicate, Species) %>%
+  summarise(count = n()) %>%
+  ungroup()
+
+head(y.long)
+```
+
+Next, `y.long` is converted to a three-dimensional array containing site/replicate matrices for each species. Each individual species and plot codes are extracted to set up the array (`y`) that will store detection-nondetection.
+
+```{r produce-y-empty, include = TRUE}
+
+sp.codes <- sort(unique(y.long$Species))
+plot.codes <- sort(unique(y.long$Plot))
+
+N <- length(sp.codes) #number of species
+
+K <- 3 #number of replicates
+
+J <- length(plot.codes) #number of sites
+
+y <- array(NA, dim = c(N, J, K), dimnames = list(sp.codes, plot.codes, 1:3))
+
+str(y)
+```
+
+The array is set to contain data for 81 species, 373 sites and a possible 3 replicates. We can fill the array with data for each species using nested for loops. The data is filled for each site and replicate one at a time. Care is needed to distinguish between site/replicate combinations where a species was not observed and site/replicate combinations that were not sampled. Here, there is an assumption that if a site was sampled for a given replicate at least one bird would be detected (**This will not be the case for my data**). 
+
+```{r fill-array, include = TRUE}
+
+for(j in 1:J) { #loop through sites
+  for(k in 1:K) { #loop through replicates
+    #extract data for current site/replicate combination
+    curr.df <- y.long %>%
+      filter(Plot == plot.codes[j],
+             Replicate == k)
+    #check if multiple dates are given for this replicate
+    if(n_distinct(curr.df$Date) > 1) {
+      curr.dates <- unique(sort(curr.df$Date))
+      curr.df <- curr.df %>%
+        filter(Date == curr.dates[1])
+    }
+    #if plot j was sampled during replicate k curr.df will have at least 1 row, if not assume it was not sampled for that replicate
+    if(nrow(curr.df) > 0) {
+      #extract the species that were observed during this site/replicate
+      curr.sp <- which(sp.codes %in% curr.df$Species)
+      #set value to 1 for species that were observed
+      y[curr.sp, j, k] <- 1
+      #and to 0 otherwise
+      y[-curr.sp, j, k] <- 0
+    }
+  }
+}
+    
+str(y)
+
+#summarise the total number of observations for each species
+apply(y, 1, sum, na.rm = TRUE)
+
+```
+
+We can see a wide range in the number of observations for the 81 species observed in 2014
+
+## Format detection covariates
+
+Next, the two observation-level covariates that will be used are extracted and formatted. Specifically, the day of each survey and the time of day each survey began. All detection covariates are formatted as matrices with rows corresponding to sites and columns corresponding to replicates. The unique date and time of day for each plot and replicate is extracted first.
+
+```{r day-time, include = TRUE}
+
+day.time.2014 <- hb.2014 %>%
+  group_by(Plot, Replicate) %>%
+  summarise(Date = unique(Date),
+            tod = unique(Time)) %>%
+  ungroup()
+
+head(day.time.2014)
+
+```
+
+Currently date is store as a date, this will be converted to day of the year and time as number of minutes since midnight.
+
+```{r detection-matrices, include = TRUE}
+
+hb.day <- matrix(NA, nrow = J, ncol = K)
+hb.tod <- matrix(NA, nrow = J, ncol = K)
+
+for (j in 1:J) { # Loop through sites
+  for (k in 1:K) { # Loop through replicate surveys
+    # Get current date and time for each survey 
+    curr.vals <- day.time.2014 %>%
+      filter(Plot == plot.codes[j], Replicate == k) %>%
+      mutate(Date = yday(Date), 
+         tod = period_to_seconds(hm(tod)) / 60 ) %>%
+      select(Date, tod) %>%
+      arrange(Date)
+    # If the site was surveyed for the given replicate, 
+    # extract the first date and time value. 
+    if (nrow(curr.vals) > 0) {
+      hb.day[j, k] <- curr.vals$Date[1]
+      hb.tod[j, k] <- curr.vals$tod[1] 
+    }
+  } # k (replicates)
+} # j (sites) 
+# Check out the structure of our covariates. 
+str(hb.day)
+str(hb.tod)
+
+```
+
+## Format occurrence covariates
+
+These covariates can only vary by site, thus, occurrence covariates are formated where the rows represent the sites and the columns represent the covariates. We will only use elevation in this example. 
+
+```{r format-occurrence-cov, include = TRUE}
+
+elev <- hbef2015$occ.covs[, 1]
+str(elev)
+
+```
+
+## Format site coordinates
+
+Coordinates should be formatted as a matrix with $J$ rows (wheree $J$ is the number of sites) and two columns, with the horizontal component in the first column and the vertical in the second. `spOccupancy` assumes coordinates are projected. So do not provide as latitude and longitude. The coordinates below are in UTM Zone 19N.
+
+```{r format-coordinates, include = TRUE}
+
+coords <- hbef2015$coords
+
+str(coords)
+```
+
+## Combine into a list object
+
+The final step is to package the data into a list object containing the following:
+
+  + `y` detection-nondetection data
+  + `det.covs` the detection covariates
+  + `occ.covs` the occurrence covariates
+  + `coords` the spatial coordinates
+
+Below we will produce the list for 10 of the 81 species.
+
+```{r create-list-object-y, include = TRUE}
+
+curr.birds <- c('BAWW', 'BLJA', 'BTBW', 'BTNW', 'EAWP', 
+        'OVEN', 'VEER', 'WBNU', 'SCTA', 'GCFL')
+
+y.msom <- y[which(sp.codes %in% curr.birds), , ]
+
+```
+
+For detection covariates we need a list containing all of the detection covariates. These can be site level or observation level. Site-level covariates are specified as a vector of length $J$, while observation-level covariates are specified as a matrix or datafram with the number of roews equal to $J$ and number of columns equal to the maximum number of replicates at a given site. Here, we have two observation level covariates, `hb.day` and `hb.tod`.
+
+```{r create-list-object-detection, include = TRUE}
+
+det.covs <- list(day = hb.day,
+                 tod = hb.tod)
+
+```
+
+Occurrence covariates are stored with rows corresponding to sites and columns as the covariate, here elevation.
+
+```{r create-list-object-occurrence, include = TRUE}
+
+occ.covs <- data.frame(elev)
+
+```
+
+Coordinates are ready for inclusion in the list.
+
+```{r create-list-object, include = TRUE}
+
+data.msom <- list(y = y.msom,
+                  occ.covs = occ.covs,
+                  det.covs = det.covs,
+                  coords = coords)
+
+```
+
