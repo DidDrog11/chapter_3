@@ -820,7 +820,7 @@ str(hb.tod)
 
 ## Format occurrence covariates
 
-These covariates can only vary by site, thus, occurrence covariates are formated where the rows represent the sites and the columns represent the covariates. We will only use elevation in this example. 
+These covariates can only vary by site, thus, occurrence covariates are formatted where the rows represent the sites and the columns represent the covariates. We will only use elevation in this example. 
 
 ```{r format-occurrence-cov, include = TRUE}
 
@@ -831,7 +831,7 @@ str(elev)
 
 ## Format site coordinates
 
-Coordinates should be formatted as a matrix with $J$ rows (wheree $J$ is the number of sites) and two columns, with the horizontal component in the first column and the vertical in the second. `spOccupancy` assumes coordinates are projected. So do not provide as latitude and longitude. The coordinates below are in UTM Zone 19N.
+Coordinates should be formatted as a matrix with $J$ rows (where $J$ is the number of sites) and two columns, with the horizontal component in the first column and the vertical in the second. `spOccupancy` assumes coordinates are projected. So do not provide as latitude and longitude. The coordinates below are in UTM Zone 19N.
 
 ```{r format-coordinates, include = TRUE}
 

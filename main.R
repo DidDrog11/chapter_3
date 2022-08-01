@@ -11,7 +11,7 @@ source(here("R", "descriptive.R"))
 source(here("R", "network.R"))
 
 # Produce multi-species occupancy models
-source(here("R", "models.R"))
+source(here("R", "multi_species_models.R"))
 
 # Produce species distributions
 source(here("R", "species_distributions.R"))

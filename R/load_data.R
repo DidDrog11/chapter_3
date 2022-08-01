@@ -17,7 +17,10 @@ detections <- combined_data$rodent_data %>%
          visit = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 2]),
          trap_night = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 3]),
          grid_number = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 4]),
-         trap_number = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 5])) %>%
+         grid_number = case_when(grid_number == 6 ~ 7,
+                                 TRUE ~ grid_number),
+         trap_number = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 5]),
+         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number))) %>%
   select(village, visit, grid_number, trap_number, trap_uid, clean_names) %>%
   mutate(clean_names = case_when(clean_names == "mus_spp" & grid_number %in% c(6, 7) ~ "mus_musculus",
                                  clean_names == "mus_spp" ~ "mus_minutoides",
@@ -44,150 +47,121 @@ sites <- combined_data$trap_data %>%
   distinct(village, visit, grid_number, trap_number, longitude, latitude, .keep_all = TRUE) %>%
   select(village, visit, grid_number, trap_number, longitude, latitude) %>%
   st_as_sf(coords = c("longitude", "latitude")) %>%
-  st_set_crs(value = "EPSG:4326") %>%
-  st_transform(crs = "EPSG:32629") %>%
-  mutate(easting = st_coordinates(geometry)[, 1],
-         northing = st_coordinates(geometry)[, 2])
+  st_set_crs(value = default_CRS) %>%
+  st_transform(crs = SL_UTM) %>%
+  mutate(trap_easting = st_coordinates(geometry)[, 1],
+         trap_northing = st_coordinates(geometry)[, 2])
 
 assign_traps_to_cells <- function(all_sites = sites) {
+  
+  # create list where each element is a grid from a village containing all  #
+  # trap locations                                                          #
   
   select_site <- all_sites %>%
     group_by(village, grid_number) %>%
     group_split()
   
-  # make a 25 m^2 grid for each site, with a 1 meter buffer from the traps  #
+  # make a 49 m^2 grid for each site, with a 1 meter buffer from the traps  #
   
   grids <- lapply(select_site, function(x) {
-    st_make_grid(st_buffer(x, 1), cellsize = 5, square = TRUE)
+    st_make_grid(st_buffer(x, 1), cellsize = 7, square = TRUE)
   })
   
+  # identify the cells of the grids that contain traps                      #
+  
   sites_in_grid <- mapply(function(X, Y) {
-                                 containing_grid <- st_within(X, Y)
-                               },
-                          X = select_site,
-                          Y = grids)
+    containing_grid <- st_within(X, Y)
+  },
+  X = select_site,
+  Y = grids)
+  
+  # allocate these cells to the trap locations                              #
+  
+  select_site <- mapply(function(X, Y) {
+    list(X %>%
+           mutate(site = c(unlist(Y))) %>%
+           tibble() %>%
+           select(-geometry))
+  },
+  X = select_site,
+  Y = sites_in_grid)
+  
+  # get the centroid of each of these grid cells and append to the trap     #
+  # locations. Name each grid cell uniquely based on village_grid_site      #
+  
+  grid_coords <- lapply(grids, function(x) {
+    site_easting <- st_coordinates(st_centroid(x))[, 1]
+    site_northing <- st_coordinates(st_centroid(x))[, 2]
+    site <- c(1:length(x))
+    
+    return(tibble(site_easting = site_easting,
+                  site_northing = site_northing,
+                  site = site))
+  })
+  
+  select_site <- mapply(function(X, Y) {
+    
+    list(X %>%
+           left_join(Y, by = "site") %>%
+           mutate(unique_site = paste0(village, "_", grid_number, "_", site),
+                  trap_uid = paste0(village, "_", visit, "_", grid_number, "_", trap_number)))
+    
+  },
+  X = select_site,
+  Y = grid_coords)
+  
+  # name the element in the list based on the village and grid_number     #
+  
+  names(select_site) <- lapply(select_site, function(x) {
+    
+    name <- paste0(unique(x$village), "_", unique(x$grid_number))
+    
+    return(name)
+  })
+  
+  return(select_site)
   
 }
 
-a <- which.min(st_distance(t[[2]][1, ], t[[1]]))
-b <- which.min(st_distance(t[[2]][-a], t[[1]][2, ]))
+sites_in_grid <- assign_traps_to_cells(sites)
 
-a <- st_buffer(t[[1]], 2)
+# we can visualise the location of the newly produced sites below       #
 
-b <- st_within(t[[2]], a) %>%
-  lengths > 0
-
-t[[2]][st_within(t[[2]], a) %>%
-    lengths > 0, ]
-t[[1]][st_contains(a, t[[2]]) %>%
-         lengths > 0, ]
-
-t[[2]][st_within(t[[2]], a) %>%
-    lengths > 0, ]
-
-closest_trap <- c(as.numeric(NA))
-
-for(i in seq(unique(t[[2]]$trap_number))) {
+visualise_sites_in_grid <- lapply(sites_in_grid, function(x) {
   
-  closest_trap[i] <- which.min(st_distance(t[[2]][i, ], t[[1]][!t[[1]]$trap_number %in% closest_trap, ]))
+  x %>% 
+    group_by(visit, site, site_easting, site_northing) %>%
+    summarise(TN = n() * 4) %>%
+    st_as_sf(coords = c("site_easting", "site_northing")) %>%
+    st_set_crs(value = SL_UTM) %>%
+    ggplot() +
+    geom_sf(aes(colour = TN)) +
+    facet_wrap(~ visit) +
+    theme_bw()
   
-}
+})
 
-t[[1]]$nearest_2 <- as.numeric(NA)
+# Produce synthetic data --------------------------------------------------
+# As data is still be collected we will produce a synthetic dataset     #
+# data will effectively be duplicated                                   #
 
-for(i in unique(t[[1]]$trap_number)) {
+duplicate_detections <- detections %>%
+  mutate(visit = visit + 6,
+         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number)))
   
-  nearest <- st_nearest_feature(t[[1]][i, ], t[[2]])
+duplicate_sites <- lapply(sites_in_grid, function(x) {
   
-  t[[1]] <- t[[1]] %>%
-    mutate(nearest_2 = case_when(trap_number == i ~ as.numeric(nearest),
-                                 TRUE ~ as.numeric(nearest_2)))
+  x %>%
+    mutate(visit = visit + 6,
+           trap_uid = paste0(village, "_", visit, "_", grid_number, "_", trap_number))
   
-  t[[2]] <- t[[2]][-nearest, ]
-  
-}
+})
 
-nearest <- tibble(visit_2_tn = c(t[[2]]$trap_number))
+synthetic_detections <- bind_rows(detections, duplicate_detections)
 
-for(i in seq(unique(t[[1]]$trap_number))) {
-  
-  distance = c(st_distance(t[[1]][i, ], t[[2]]))
-  
-  nearest[, paste0(t[[1]][i, ]$trap_number)] <- distance
-  
-}
+synthetic_sites <- bind_rows(bind_rows(sites_in_grid), bind_rows(duplicate_sites))
 
-a <- nearest %>%
-  pivot_longer(cols = 2:50, names_to = "visit_1", values_to = "distance") %>%
-  mutate(rank_distance = rank(distance, ties.method = "first")) %>%
-  group_by(visit_2_tn) %>%
-  mutate(rank_closest = rank(distance, ties.method = "first")) %>%
-  arrange(rank_closest, rank_distance)
-  
-p <- a %>%
-  group_by(visit_2_tn) %>%
-  slice_min(rank_closest)
-first <- a %>%
-  group_by(visit_1) %>%
-  slice_min(rank_distance) %>%
-  ungroup() %>%
-  group_by(visit_2_tn) %>%
-  slice_min(rank_closest)
+synthetic_data <- list(synthetic_detections = synthetic_detections,
+                       synthetic_sites = synthetic_sites)
 
-second <- a %>%
-  filter(!visit_2_tn %in% first$visit_2_tn,
-         !visit_1 %in% first$visit_1) %>%
-  group_by(visit_1) %>%
-  slice_min(rank_distance) %>%
-  ungroup() %>%
-  group_by(visit_2_tn) %>%
-  slice_min(rank_closest)
-
-third <- a %>%
-  filter(!visit_2_tn %in% c(first$visit_2_tn, second$visit_2_tn),
-         !visit_1 %in% c(first$visit_1, second$visit_1)) %>%
-  group_by(visit_1) %>%
-  slice_min(rank_distance) %>%
-  ungroup() %>%
-  group_by(visit_2_tn) %>%
-  slice_min(rank_closest)
-
-fourth <- a %>%
-  filter(!visit_2_tn %in% c(first$visit_2_tn, second$visit_2_tn, third$visit_2_tn),
-         !visit_1 %in% c(first$visit_1, second$visit_1, third$visit_1)) %>%
-  group_by(visit_1) %>%
-  slice_min(rank_distance) %>%
-  ungroup() %>%
-  group_by(visit_2_tn) %>%
-  slice_min(rank_closest)
-
-fifth <- a %>%
-  filter(!visit_2_tn %in% c(first$visit_2_tn, second$visit_2_tn, third$visit_2_tn, fourth$visit_2_tn),
-         !visit_1 %in% c(first$visit_1, second$visit_1, third$visit_1, fourth$visit_1)) %>%
-  group_by(visit_1) %>%
-  slice_min(rank_distance) %>%
-  ungroup() %>%
-  group_by(visit_2_tn) %>%
-  slice_min(rank_closest)
-
-sixth <- a %>%
-  filter(!visit_2_tn %in% c(first$visit_2_tn, second$visit_2_tn, third$visit_2_tn, fourth$visit_2_tn, fifth$visit_2_tn),
-         !visit_1 %in% c(first$visit_1, second$visit_1, third$visit_1, fourth$visit_1, fifth$visit_2_tn)) %>%
-  group_by(visit_1) %>%
-  slice_min(rank_distance) %>%
-  ungroup() %>%
-  group_by(visit_2_tn) %>%
-  slice_min(rank_closest)
-
-a <- tibble(trap_number = c(t[[2]]$trap_number),
-              distance = c(st_distance(t[[1]][1, ], t[[2]])))
-
-st_nearest_feature(t[[1]], t[[2]])
-
-trap_buffer <- st_buffer(sites, 5)
-
-sf_int <- st_intersects(trap_buffer, sites)
-
-ggplot() +
-  geom_sf(data = sites %>% filter(village == "lambayama")) +
-  geom_sf(data = sites[c(sf_int[[130]]), ], aes(colour = trap_number))
+write_rds(synthetic_data, here("data", "synthetic_data", "synthetic_data.rds"))
