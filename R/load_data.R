@@ -143,25 +143,253 @@ visualise_sites_in_grid <- lapply(sites_in_grid, function(x) {
 
 # Produce synthetic data --------------------------------------------------
 # As data is still be collected we will produce a synthetic dataset     #
-# data will effectively be duplicated                                   #
+# data will effectively be duplicated, with the max visit number = 10   #
 
 duplicate_detections <- detections %>%
   mutate(visit = visit + 6,
-         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number)))
+         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number))) %>%
+  filter(visit <= 10)
   
 duplicate_sites <- lapply(sites_in_grid, function(x) {
   
   x %>%
     mutate(visit = visit + 6,
-           trap_uid = paste0(village, "_", visit, "_", grid_number, "_", trap_number))
+           trap_uid = paste0(village, "_", visit, "_", grid_number, "_", trap_number),
+           unique_site = paste0(village, "_", grid_number, "_", site))
   
 })
 
 synthetic_detections <- bind_rows(detections, duplicate_detections)
 
-synthetic_sites <- bind_rows(bind_rows(sites_in_grid), bind_rows(duplicate_sites))
+synthetic_sites <- bind_rows(bind_rows(sites_in_grid), bind_rows(duplicate_sites) %>%
+                               filter(visit <= 10))
 
 synthetic_data <- list(synthetic_detections = synthetic_detections,
                        synthetic_sites = synthetic_sites)
 
 write_rds(synthetic_data, here("data", "synthetic_data", "synthetic_data.rds"))
+
+# Detection covariates ----------------------------------------------------
+# Add date_set to the sites dataset to calculate moon and rainfall    #
+
+current_dates <- combined_data$trap_data %>%
+  tibble() %>%
+  filter(trap_night == 1 &
+           village != "bambawo") %>%
+  select(date_set, village, visit, grid_number, trap_number) %>%
+  mutate(grid_number = case_when(grid_number == as.character(6) ~ as.numeric(7),
+                                 TRUE ~ as.numeric(as.character(grid_number))),
+         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number)),
+         date_set = case_when(village == "lalehun" & date_set == "2020-11-30" ~ ymd("2020-12-01"), # Change date to prevent big difference between nights rainfall
+                              TRUE ~ ymd(date_set)),
+         visit = as.numeric(as.character(visit)))
+
+# Create future dates for the simulated visits, assuming every 3 months #
+last_visit <- current_dates %>%
+  group_by(village) %>%
+  summarise(last_visit = 6,
+            date_set = max(date_set))
+
+last_visit$date_set[last_visit$village == "seilama"] <- ymd("2022-04-12") + days(5)
+
+future_visit <- list()
+
+for(i in 1:6) {
+  
+  future_visit[[i]] <- last_visit %>%
+    mutate(visit = last_visit + i,
+           date_set = ymd(date_set) + months(3 * i))
+  
+}
+
+future_visit <- bind_rows(future_visit)
+
+# Date set for all sites                                                #
+
+date_set <- current_dates %>%
+  left_join(bind_rows(sites_in_grid) %>%
+              select(visit, unique_site, trap_uid),
+            by = c("visit", "trap_uid")) %>%
+  distinct(date_set, visit, unique_site) %>%
+  bind_rows(future_visit %>%
+              left_join(bind_rows(duplicate_sites) %>%
+                          select(village, visit, unique_site),
+                        by = c("village", "visit")) %>%
+              distinct(date_set, visit, unique_site)) %>%
+  right_join(synthetic_sites, by = c("visit", "unique_site")) %>%
+  distinct(date_set, visit, unique_site, site_easting, site_northing)
+
+# Monthly rainfall --------------------------------------------------------
+# For the precipitation data we need to provide lon and lat points.     #
+# We extract the centre of the trapping sites for this.                 #
+
+tile_coords <- st_coordinates(st_centroid(st_as_sfc(st_bbox(combined_data$trap_data), crs = default_CRS)))
+
+worldclim_tile("worldclim", var = "prec", res = 0.5, lon = tile_coords[1], lat = tile_coords[2], path = here("data", "geodata"))
+
+precip_rast <- rast(here("data", "geodata", "wc2.1_tiles", "tile_30_wc2.1_30s_prec.tif"))
+
+month_split <- date_set %>%
+  mutate(month = month(date_set)) %>%
+  st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
+  st_transform(crs = default_CRS) %>%
+  group_by(month) %>%
+  group_split()
+
+month_split <- lapply(function(X) {
+  
+  # Extract month of interest
+  month <- unique(X$month)
+  # Subset monthly raster to month of interest
+  precip_month <- precip_rast[[month]]
+  # Convert spatial DF to vect for speed
+  vect_X <- vect(X)
+  # Append precipitation to month_split DF
+  X$precipitation <- extract(precip_month, vect_X)[, 2]
+  
+  return(X)
+}, X = month_split)
+
+# Moon phase --------------------------------------------------------------
+
+month_split <- lapply(function(X) {
+  
+  date_trap <- ymd(unique(X$date_set))
+  
+  moon_fraction <- getMoonIllumination(date = date_trap) %>%
+    select(date, fraction)
+  
+  X <- X %>%
+    left_join(moon_fraction, by = c("date_set" = "date")) %>%
+    rename(moon_fraction = fraction)
+  
+  return(X)
+  
+}, X = month_split)
+
+rain_moon <- bind_rows(month_split) %>%
+  tibble() %>%
+  select(unique_site, visit, precipitation, moon_fraction)
+
+
+# Trap nights -------------------------------------------------------------
+# Multiple traps are allocated to a single grid cell and 4 trap nights were conducted per trap
+# We will use this as a measure of effort for detection
+
+trap_nights <- lapply(sites_in_grid, function(X) {
+  
+  X <- X %>%
+    group_by(unique_site, visit) %>%
+    summarise(n_traps = n()) %>%
+    mutate(trap_nights = n_traps * 4)
+  
+  return(X)
+}) %>%
+  bind_rows() %>%
+  ungroup()
+  
+duplicate_trap_nights <- trap_nights %>%
+  mutate(visit = visit + 6) %>%
+  filter(visit <= 10)
+
+combined_trap_nights <- bind_rows(trap_nights, duplicate_trap_nights) %>%
+  select(unique_site, visit, trap_nights)
+
+# Detection covariates combined -------------------------------------------
+
+detection_covariates <- left_join(rain_moon, combined_trap_nights, by = c("unique_site", "visit"))
+
+write_rds(detection_covariates, here("data", "synthetic_data", "detection_covariates.rds"))
+
+
+# Occurrence covariates ---------------------------------------------------
+# Get the bounding box of the village and buffer it by 100m before downloading from OSM
+
+distance_from_building <- function(data = synthetic_data$synthetic_sites, village_name) {
+  
+  osm <- opq(st_as_sfc(st_bbox(data %>%
+                                 filter(village == village_name) %>%
+                                 st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
+                                 st_transform(crs = default_CRS)), crs = default_CRS) %>%
+               st_buffer(dist = 100) %>%
+               st_bbox()) %>%
+    add_osm_feature(key = "building") %>%
+    osmdata_sf()
+  
+  buildings <- osm$osm_polygons %>%
+    st_transform(crs = SL_UTM) %>%
+    st_union()
+  
+  sites <- synthetic_data$synthetic_sites %>%
+    filter(village == village_name) %>%
+    distinct(unique_site, site_easting, site_northing) %>%
+    st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
+    mutate(distance_building = as.numeric(st_distance(., buildings)))
+}
+
+distance_building <- lapply(X = c("baiama", "lalehun", "lambayama", "seilama"), function(X) {
+  distance_from_building(village_name = X)
+}) %>%
+  bind_rows() %>%
+  tibble() %>%
+  distinct(unique_site, distance_building)
+
+# We also use the distance from the centre of the village site these are stored as coordinates
+village_coords <- tibble(village = c("baiama", "lalehun", "lambayama", "seilama"),
+                         X = c(-11.268454, -11.0803, -11.198249, -11.193628469657279),
+                         Y = c(7.83708, 8.197533, 7.854131, 8.122285428353395)) %>%
+  st_as_sf(coords = c("X", "Y"), crs = default_CRS) %>%
+  st_transform(crs = SL_UTM)
+
+distance_from_centre <- synthetic_data$synthetic_sites %>%
+  distinct(unique_site, site_easting, site_northing) %>%
+  st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
+  mutate(distance_centre = case_when(str_detect(unique_site, "baiama") ~ as.numeric(st_distance(., village_coords %>%
+                                                                                       filter(village == "baiama"))),
+                                     str_detect(unique_site, "lalehun") ~ as.numeric(st_distance(., village_coords %>%
+                                                                                                  filter(village == "lalehun"))),
+                                     str_detect(unique_site, "lambayama") ~ as.numeric(st_distance(., village_coords %>%
+                                                                                                  filter(village == "lambayama"))),
+                                     str_detect(unique_site, "seilama") ~ as.numeric(st_distance(., village_coords %>%
+                                                                                                  filter(village == "seilama"))),
+                                     TRUE ~ as.numeric(NA))) %>%
+  tibble() %>%
+  distinct(unique_site, distance_centre)
+
+# Elevation will also be used as an occurrence covariate
+# This method is currently failing due to an invalid/expired certificate
+# elevation_3s(lon = tile_coords[1], lat = tile_coords[2], path = here("data", "geodata"))
+# Will use the elevatr package instead for this we need a data.frame with the centre of each village
+
+elevation_rast <- get_elev_raster(locations = village_coords %>%
+                                    st_transform(crs = default_CRS), prj = default_CRS, z = 12) %>%
+  rast()
+
+elevation_vect <- vect(synthetic_data$synthetic_sites %>%
+  distinct(unique_site, site_easting, site_northing) %>%
+  st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
+  st_transform(crs = default_CRS))
+  
+elevation_vect$elevation <- extract(elevation_rast, elevation_vect)[, 2]
+
+elevation <- data.frame(elevation_vect)
+
+
+# Occurrence covariates combined ------------------------------------------
+
+occurrence_covariates <- synthetic_data$synthetic_sites %>%
+  select(village, unique_site) %>%
+  left_join(distance_building, by = c("unique_site")) %>%
+  left_join(distance_from_centre, by = c("unique_site")) %>%
+  left_join(elevation, by = c("unique_site"))
+
+write_rds(occurrence_covariates, here("data", "synthetic_data", "occurrence_covariates.rds"))
+
+# Site coordinates --------------------------------------------------------
+
+coords <- synthetic_data$synthetic_sites %>%
+  distinct(unique_site, site_easting, site_northing)
+
+coord_array <- array(data = c(coords$site_easting, coords$site_northing), dim = c(nrow(coords), 2), dimnames = list(c(coords$unique_site), c("X", "Y")))
+
+write_rds(coord_array, here("data", "synthetic_data", "site_coords.rds"))

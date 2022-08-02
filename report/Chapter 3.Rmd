@@ -95,6 +95,8 @@ First, we adopted a Bayesian multi-species occupancy framework to analyse rodent
   * Probability of occurrence ~ (species_specific_intercept * Forested) + (species_specific_intercept * Agricultural) + (species_specific_intercept * Housing)
   * Probability of detection ~ (species_specific_intercept * monthly_precipitation) (**Difficult to tease out whether this is a detection or occurrence factor**)
 
+Factors that can influence detection include; rainfall (monthly), light (so moon phase) and number of trap-nights within cell.
+
 Using this model, we calculate the effect of landuse as the difference in occupancy probability for each species between each of the four land use classifications. Only estimates for species with at least X records to avoid inference from limited data. Occupancy is interpreted here as the species' probability of being detected through a successful trapping event during the study. We estimate species richness in each habitat type by obtaining the sum of species at a trapping site for each iteration of the Bayesian sampling process to compare rodent assemblage responses to land use classification.
 
 ### Species distribution maps for current land use classifications and potential future change

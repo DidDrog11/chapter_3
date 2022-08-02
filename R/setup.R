@@ -3,6 +3,8 @@ if (!require("pacman")) install.packages("pacman")
 pkgs =
   c("coda",
     "cowplot",
+    "elevatr",
+    "geodata",
     "googledrive",
     "here",
     "INLA",
@@ -12,6 +14,8 @@ pkgs =
     "sf",
     "spOccupancy",
     "stars",
+    "suncalc",
+    "terra",
     "tidyverse"
   )
 

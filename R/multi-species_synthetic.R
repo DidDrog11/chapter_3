@@ -74,13 +74,15 @@ apply(y, 1, sum, na.rm = TRUE)
 
 
 # Produce detection covariates --------------------------------------------
+# here we add covariates that can impact the probability of detecting a rodent if it is present
+raw_det <- read_rds(here("data", "synthetic_data", "detection_covariates.rds"))
 
 
 # Produce occurrence covariates -------------------------------------------
 
 
 # Format site coordinates -------------------------------------------------
-
+coords <- read_rds(here("data", "synthetic_data", "site_coords.rds"))
 
 # Create list object ------------------------------------------------------
 

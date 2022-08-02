@@ -41,3 +41,6 @@ vignettes/*.pdf
 # produced html
 R/*.html
 R/*_files
+
+# large data files
+data/geodata
