@@ -10,6 +10,7 @@ pkgs =
     "INLA",
     "lubridate",
     "mapview",
+    "osmdata",
     "RhpcBLASctl",
     "sf",
     "spOccupancy",

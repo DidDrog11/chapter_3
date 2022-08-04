@@ -34,7 +34,7 @@ detections <- combined_data$rodent_data %>%
 # UTM 29N for Sierra Leone this is EPSG:32629.                                #
 
 sites <- combined_data$trap_data %>%
-  select(date_set, village, trap_uid, visit, grid_number, trap_number, habitat, proximity, site_use, elevation, geometry) %>%
+  select(date_set, village, trap_uid, visit, grid_number, trap_number, habitat_group, site_habitat, site_use, elevation, geometry) %>%
   filter(village != "bambawo") %>% # remove Bambawo as only used for one replicate
   mutate(visit = as.numeric(as.character(visit)),
          grid_number = as.numeric(as.character(grid_number)),
@@ -45,7 +45,7 @@ sites <- combined_data$trap_data %>%
   tibble(.) %>%
   select(-geometry) %>%
   distinct(village, visit, grid_number, trap_number, longitude, latitude, .keep_all = TRUE) %>%
-  select(village, visit, grid_number, trap_number, longitude, latitude) %>%
+  select(village, visit, grid_number, trap_number, longitude, latitude, habitat_group, site_habitat) %>%
   st_as_sf(coords = c("longitude", "latitude")) %>%
   st_set_crs(value = default_CRS) %>%
   st_transform(crs = SL_UTM) %>%
@@ -119,11 +119,33 @@ assign_traps_to_cells <- function(all_sites = sites) {
     return(name)
   })
   
-  return(select_site)
+  names(grid_coords) <- lapply(select_site, function(x) {
+    
+    name <- paste0(unique(x$village), "_", unique(x$grid_number))
+    
+    return(name)
+  })
+  
+  return(list(select_site = select_site,
+              grid_coords = grid_coords))
   
 }
 
-sites_in_grid <- assign_traps_to_cells(sites)
+sites_grids <- assign_traps_to_cells(sites)
+
+sites_in_grid <- sites_grids$select_site
+grid_coords <- sites_grids$grid_coords
+
+for(i in 1:length(grid_coords)) {
+  
+  village_grid <- names(grid_coords[i])
+  
+  grid_coords[[i]] <- grid_coords[[i]] %>%
+    mutate(unique_site = paste0(village_grid, "_", site))
+  
+}
+
+grid_coords <- bind_rows(grid_coords)
 
 # we can visualise the location of the newly produced sites below       #
 
@@ -159,10 +181,17 @@ duplicate_sites <- lapply(sites_in_grid, function(x) {
   
 })
 
-synthetic_detections <- bind_rows(detections, duplicate_detections)
+# Give visits by village consecutive numbers
+
+synthetic_detections <- bind_rows(detections, duplicate_detections) %>%
+  mutate(visit = case_when(village %in% c("baiama", "lambayama") & visit >= 5 ~ visit - 2,
+                           TRUE ~ visit))
 
 synthetic_sites <- bind_rows(bind_rows(sites_in_grid), bind_rows(duplicate_sites) %>%
-                               filter(visit <= 10))
+                               filter(visit <= 10)) %>%
+  mutate(visit = case_when(village %in% c("baiama", "lambayama") & visit >= 5 ~ visit - 2,
+                           TRUE ~ visit)) %>%
+  arrange(unique_site)
 
 synthetic_data <- list(synthetic_detections = synthetic_detections,
                        synthetic_sites = synthetic_sites)
@@ -187,14 +216,14 @@ current_dates <- combined_data$trap_data %>%
 # Create future dates for the simulated visits, assuming every 3 months #
 last_visit <- current_dates %>%
   group_by(village) %>%
-  summarise(last_visit = 6,
+  summarise(last_visit = max(visit),
             date_set = max(date_set))
 
 last_visit$date_set[last_visit$village == "seilama"] <- ymd("2022-04-12") + days(5)
 
 future_visit <- list()
 
-for(i in 1:6) {
+for(i in 1:4) {
   
   future_visit[[i]] <- last_visit %>%
     mutate(visit = last_visit + i,
@@ -202,21 +231,17 @@ for(i in 1:6) {
   
 }
 
-future_visit <- bind_rows(future_visit)
-
+future_visit <- bind_rows(future_visit) %>%
+  select(village, visit, date_set)
+  
 # Date set for all sites                                                #
-
-date_set <- current_dates %>%
-  left_join(bind_rows(sites_in_grid) %>%
-              select(visit, unique_site, trap_uid),
-            by = c("visit", "trap_uid")) %>%
-  distinct(date_set, visit, unique_site) %>%
-  bind_rows(future_visit %>%
-              left_join(bind_rows(duplicate_sites) %>%
-                          select(village, visit, unique_site),
-                        by = c("village", "visit")) %>%
-              distinct(date_set, visit, unique_site)) %>%
-  right_join(synthetic_sites, by = c("visit", "unique_site")) %>%
+date_set <- synthetic_data$synthetic_sites %>%
+  left_join(current_dates %>%
+              distinct(village, visit, grid_number, date_set),
+            by = c("village", "visit", "grid_number")) %>%
+  left_join(future_visit, 
+            by = c("village", "visit")) %>%
+  mutate(date_set = coalesce(date_set.x, date_set.y)) %>%
   distinct(date_set, visit, unique_site, site_easting, site_northing)
 
 # Monthly rainfall --------------------------------------------------------
@@ -245,7 +270,7 @@ month_split <- lapply(function(X) {
   # Convert spatial DF to vect for speed
   vect_X <- vect(X)
   # Append precipitation to month_split DF
-  X$precipitation <- extract(precip_month, vect_X)[, 2]
+  X$precipitation <- terra::extract(precip_month, vect_X)[, 2]
   
   return(X)
 }, X = month_split)
@@ -293,16 +318,45 @@ duplicate_trap_nights <- trap_nights %>%
   filter(visit <= 10)
 
 combined_trap_nights <- bind_rows(trap_nights, duplicate_trap_nights) %>%
+  mutate(visit = case_when(str_detect(unique_site, "baiama|lambayama") & visit >= 5 ~ visit - 2,
+                           TRUE ~ visit)) %>%
   select(unique_site, visit, trap_nights)
 
 # Detection covariates combined -------------------------------------------
 
-detection_covariates <- left_join(rain_moon, combined_trap_nights, by = c("unique_site", "visit"))
+detection_covariates <- left_join(rain_moon, combined_trap_nights, by = c("unique_site", "visit")) %>%
+  arrange(unique_site)
 
 write_rds(detection_covariates, here("data", "synthetic_data", "detection_covariates.rds"))
 
 
 # Occurrence covariates ---------------------------------------------------
+# The primary outcome is the effect of habitat type on occurrence we extract this from the site data
+
+land_use <- synthetic_data$synthetic_sites %>%
+  distinct(unique_site, habitat_group, site_habitat) %>%
+  mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
+                             habitat_group == "village" ~ site_habitat,
+                             habitat_group == "proximal_agriculture" ~ "agriculture",
+                             habitat_group == "distal_agriculture" ~ "agriculture",
+                             TRUE ~ habitat_group)) %>%
+  select(unique_site, landuse)
+  
+duplicated_land_use <- land_use %>%
+  group_by(unique_site) %>%
+  mutate(n = n()) %>%
+  filter(n >= 2) %>%
+  mutate(landuse = case_when(landuse == "fallow" ~ "agriculture",
+                             landuse == "village_outside" ~ "village_inside",
+                             TRUE ~ landuse)) %>%
+  distinct(unique_site, landuse) %>%
+  ungroup()
+
+land_use <- land_use %>% 
+  filter(!unique_site %in% duplicated_land_use$unique_site) %>%
+  bind_rows(duplicated_land_use) %>%
+  arrange(unique_site)
+
 # Get the bounding box of the village and buffer it by 100m before downloading from OSM
 
 distance_from_building <- function(data = synthetic_data$synthetic_sites, village_name) {
@@ -370,7 +424,7 @@ elevation_vect <- vect(synthetic_data$synthetic_sites %>%
   st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
   st_transform(crs = default_CRS))
   
-elevation_vect$elevation <- extract(elevation_rast, elevation_vect)[, 2]
+elevation_vect$elevation <- terra::extract(elevation_rast, elevation_vect)[, 2]
 
 elevation <- data.frame(elevation_vect)
 
@@ -378,17 +432,20 @@ elevation <- data.frame(elevation_vect)
 # Occurrence covariates combined ------------------------------------------
 
 occurrence_covariates <- synthetic_data$synthetic_sites %>%
-  select(village, unique_site) %>%
+  distinct(village, unique_site) %>%
+  left_join(land_use, by = c("unique_site")) %>%
   left_join(distance_building, by = c("unique_site")) %>%
   left_join(distance_from_centre, by = c("unique_site")) %>%
-  left_join(elevation, by = c("unique_site"))
+  left_join(elevation, by = c("unique_site")) %>%
+  arrange(unique_site)
 
 write_rds(occurrence_covariates, here("data", "synthetic_data", "occurrence_covariates.rds"))
 
 # Site coordinates --------------------------------------------------------
 
 coords <- synthetic_data$synthetic_sites %>%
-  distinct(unique_site, site_easting, site_northing)
+  distinct(unique_site, site_easting, site_northing) %>%
+  arrange(unique_site)
 
 coord_array <- array(data = c(coords$site_easting, coords$site_northing), dim = c(nrow(coords), 2), dimnames = list(c(coords$unique_site), c("X", "Y")))
 

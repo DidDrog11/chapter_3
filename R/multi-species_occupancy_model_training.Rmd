@@ -536,7 +536,7 @@ The spatial model here identifies areas with low OVEN occurrence that are not ca
 
 # Multi species occupancy models
 
-The same syntax is used for `msPGOcc()` functions as for single-species models. For multi-species models, the multi-species detection-nondetection data stored in `y` is now a three-dimensional array with domensions corresponding to species, sites and replicates. 
+The same syntax is used for `msPGOcc()` functions as for single-species models. For multi-species models, the multi-species detection-nondetection data stored in `y` is now a three-dimensional array with dimensions corresponding to species, sites and replicates. 
 
 ## Model formula
 

@@ -44,3 +44,4 @@ R/*_files
 
 # large data files
 data/geodata
+data/model_output
