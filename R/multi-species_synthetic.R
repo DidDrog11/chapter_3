@@ -86,32 +86,41 @@ apply(y, 1, sum, na.rm = TRUE)
 
 # Produce detection covariates --------------------------------------------
 # here we add covariates that can impact the probability of detecting a rodent if it is present
-raw_det <- read_rds(here("data", "synthetic_data", "detection_covariates.rds")) %>%
-  left_join(site_match, by = c("unique_site"))
 
-precip_mat <- matrix(NA, nrow = J, ncol = K)
-moon_mat <- matrix(NA, nrow = J, ncol = K)
-tn_mat <- matrix(NA, nrow = J, ncol = K)
-
-for (j in 1:J) { # Loop through sites
-  for (k in 1:K) { # Loop through replicate surveys
-    curr_vals <- raw_det %>%
-      filter(site_code == site_codes[j], visit == k)
-    # If the site was surveyed for the given replicate, 
-    # extract the first date and time value. 
-    if (nrow(curr_vals) > 0) {
-      precip_mat[j, k] <- curr_vals$precipitation[1]
-      moon_mat[j, k] <- curr_vals$moon_fraction[1] 
-      tn_mat[j, k] <- curr_vals$trap_nights[1] 
-    }
-  } # k (replicates)
-} # j (sites) 
-
-det_covs <- list(precipitation = precip_mat,
-                 moon_fraction = moon_mat,
-                 trap_nights = tn_mat)
-
-write_rds(det_covs, here("data", "synthetic_data", "det_covs.rds"))
+if(!file.exists(here("data", "synthetic_data", "det_covs.rds"))) {
+  
+  raw_det <- read_rds(here("data", "synthetic_data", "detection_covariates.rds")) %>%
+    left_join(site_match, by = c("unique_site"))
+  
+  precip_mat <- matrix(NA, nrow = J, ncol = K)
+  moon_mat <- matrix(NA, nrow = J, ncol = K)
+  tn_mat <- matrix(NA, nrow = J, ncol = K)
+  
+  for (j in 1:J) { # Loop through sites
+    for (k in 1:K) { # Loop through replicate surveys
+      curr_vals <- raw_det %>%
+        filter(site_code == site_codes[j], visit == k)
+      # If the site was surveyed for the given replicate, 
+      # extract the first date and time value. 
+      if (nrow(curr_vals) > 0) {
+        precip_mat[j, k] <- curr_vals$precipitation[1]
+        moon_mat[j, k] <- curr_vals$moon_fraction[1] 
+        tn_mat[j, k] <- curr_vals$trap_nights[1] 
+      }
+    } # k (replicates)
+  } # j (sites) 
+  
+  det_covs <- list(precipitation = precip_mat,
+                   moon_fraction = moon_mat,
+                   trap_nights = tn_mat)
+  
+  write_rds(det_covs, here("data", "synthetic_data", "det_covs.rds"))
+  
+} else {
+  
+  det_covs <- read_rds(here("data", "synthetic_data", "det_covs.rds"))
+  
+}
 
 # sites with NA trap_nights were not sampled during that replicate, we use this to recode y
 for(n in 1:N) {
@@ -187,20 +196,28 @@ ms_priors <- list(beta.comm.normal = list(mean = 0, var = 2.72),
 
 # Intercept only model ----------------------------------------------------
 # Run intercept only model
-out_ms_int <- msPGOcc(occ.formula = occ_ms_formula_int, 
-                    det.formula = det_ms_formula, 
-                    data = data_msom, 
-                    inits = ms_inits, 
-                    n.samples = 30000, 
-                    priors = ms_priors, 
-                    n.omp.threads = 1, 
-                    verbose = TRUE, 
-                    n.report = 6000, 
-                    n.burn = 10000,
-                    n.thin = 50, 
-                    n.chains = 3)
 
-write_rds(out_ms_int, here("data", "model_output", "intercept_only.rds"))
+if(!file.exists(here("data", "model_output", "intercept_only.rds"))) {
+  
+  out_ms_int <- msPGOcc(occ.formula = occ_ms_formula_int, 
+                        det.formula = det_ms_formula, 
+                        data = data_msom, 
+                        inits = ms_inits, 
+                        n.samples = 30000, 
+                        priors = ms_priors, 
+                        verbose = TRUE, 
+                        n.report = 6000, 
+                        n.burn = 10000,
+                        n.thin = 50, 
+                        n.chains = 3)
+  
+  write_rds(out_ms_int, here("data", "model_output", "intercept_only.rds"))
+  
+} else {
+  
+  out_ms_int <- read_rds(here("data", "model_output", "intercept_only.rds"))
+  
+}
 
 summary(out_ms_int, level = "both")
 
@@ -211,7 +228,7 @@ ppc_ms_out_int <- ppcOcc(out_ms_int, 'chi-squared', group = 1)
 summary(ppc_ms_out_int)
 
 X_0 <- array(1, dim = c(13, 1))
-pred_int <- predict(out_ms_int, X.0)
+pred_int <- predict(out_ms_int, X_0)
 
 pred_df_int <- data.frame(species = sp_codes,
                           mean_psi = apply(pred_int$psi.0.samples, 2, mean),
@@ -219,23 +236,38 @@ pred_df_int <- data.frame(species = sp_codes,
 
 pred_df_int %>%
   ggplot() +
-  geom_point(aes(x = species, y = mean_psi)) +
-  geom_errorbar(aes(x = species, ymin = mean_psi-sd_psi, ymax = mean_psi+sd_psi)) +
-  theme_bw()
+  geom_point(aes(x = species, y = mean_psi, colour = species)) +
+  geom_errorbar(aes(x = species, ymin = mean_psi-sd_psi, ymax = mean_psi+sd_psi, colour = species)) +
+  theme_bw() +
+  labs(title = "Probability of occurrence - Intercept only",
+       y = "Mean Psi",
+       x = "Species",
+       colour = element_blank())
 
+# Full model --------------------------------------------------------------
 # Run model
-out_ms_1 <- msPGOcc(occ.formula = occ_ms_formula_1, 
-                    det.formula = det_ms_formula, 
-                    data = data_msom, 
-                    inits = ms_inits, 
-                    n.samples = 30000, 
-                    priors = ms_priors, 
-                    n.omp.threads = 1, 
-                    verbose = TRUE, 
-                    n.report = 6000, 
-                    n.burn = 10000,
-                    n.thin = 50, 
-                    n.chains = 3)
+
+if(!file.exists(here("data", "model_output", "full_model.rds"))) {
+  out_ms_1 <- msPGOcc(occ.formula = occ_ms_formula_1, 
+                      det.formula = det_ms_formula, 
+                      data = data_msom, 
+                      inits = ms_inits, 
+                      n.samples = 30000, 
+                      priors = ms_priors, 
+                      n.omp.threads = 1, 
+                      verbose = TRUE, 
+                      n.report = 6000, 
+                      n.burn = 10000,
+                      n.thin = 50, 
+                      n.chains = 3)
+  
+  write_rds(out_ms_1, here("data", "model_output", "full_model.rds"))
+  
+} else {
+  
+  out_ms_1 <- read_rds(here("data", "model_output", "full_model.rds"))
+  
+}
 
 summary(out_ms_1, level = "both")
 
@@ -244,4 +276,87 @@ ppc_ms_out_1 <- ppcOcc(out_ms_1, 'chi-squared', group = 1)
 summary(ppc_ms_out_1)
 
 waicOcc(out_ms_1)
+
+
+# Produce prediction dataframe --------------------------------------------
+X_1 <- raw_occ %>%
+  select(village, landuse, distance_building, distance_centre, elevation) %>%
+  mutate(village_value = 1,
+         habitat_value = 1) %>%
+  pivot_wider(names_from = village, values_from = village_value, values_fill = 0) %>%
+  select(-baiama) %>%
+  pivot_wider(names_from = landuse, values_from = habitat_value, values_fill = 0) %>%
+  select(-agriculture) %>%
+  mutate(intercept = 1,
+         distance_building = (distance_building - mean(data_msom$occ.covs$distance_building)) / sd(data_msom$occ.covs$distance_building),
+         distance_centre = (distance_centre - mean(data_msom$occ.covs$distance_village)) / sd(data_msom$occ.covs$distance_village),
+         elevation = (elevation - mean(data_msom$occ.covs$elevation)) / sd(data_msom$occ.covs$elevation)) %>%
+  select(intercept, fallow, forest, village_inside, village_outside, lalehun, lambayama, seilama, distance_building, distance_centre, elevation)
+
+colnames_X_1 <- names(X_1)
+
+X_1 <- array(data = unlist(X_1), dim = c(nrow(X_1), ncol(X_1)))
+
+pred_1 <- predict(out_ms_1, X_1)
+
+interp_1 <- as.data.frame(X_1)
+names(interp_1) <- colnames_X_1
+
+for(n in 1:N) {
+  
+  species_mean <- tibble(psi_mean = apply(pred_1$psi.0.samples[ , n, ], 2, mean),
+                         psi_sd = apply(pred_1$psi.0.samples[ , n, ], 2, sd))
+  
+  names(species_mean) = c(paste0(sp_codes[n], "_mean"),
+                          paste0(sp_codes[n], "_sd"))
+                               
+  
+  interp_1 <- bind_cols(interp_1, species_mean)
+}
+
+a <- interp_1 %>%
+  mutate(baiama = case_when(lalehun == 0 & lambayama == 0 & seilama == 0 ~ 1,
+                            TRUE ~ 0),
+         agriculture = case_when(fallow == 0 & forest == 0 & village_inside == 0 & village_outside == 0 ~ 1,
+                                 TRUE ~ 0)) %>%
+  select(-intercept, -distance_building, -distance_centre, -elevation) %>%
+  mutate(village = case_when(baiama == 1 ~ "baiama",
+                             lalehun == 1 ~ "lalehun",
+                             lambayama == 1 ~ "lambayama",
+                             seilama == 1 ~ "seilama")) %>%
+  select(-c("baiama", "lalehun", "lambayama", "seilama")) %>%
+  mutate(habitat = case_when(agriculture == 1 ~ "agriculture",
+                             fallow == 1 ~ "fallow",
+                             forest == 1 ~ "forest",
+                             village_inside == 1 ~ "village_inside",
+                             village_outside == 1 ~ "village_outside")) %>%
+  select(-c("agriculture", "fallow", "forest", "village_inside", "village_outside")) %>%
+  pivot_longer(cols = any_of(c(paste0(sp_codes, "_mean"), paste0(sp_codes, "_sd"))), values_to = "psi") %>%
+  mutate(metric = case_when(str_detect(name, "mean") ~ "mean",
+                            str_detect(name, "sd") ~ "sd"),
+         species = str_remove_all(name, "_mean|_sd")) %>%
+  select(village, habitat, species, metric, psi)
+
+b <- a %>%
+  filter(metric == "mean") %>%
+  rename(mean = metric,
+         mean_psi = psi) %>%
+  select(-mean) %>%
+  bind_cols(a %>%
+              filter(metric == "sd") %>%
+              rename(sd = metric,
+                     sd_psi = psi) %>%
+              select(sd_psi)) %>%
+  mutate(psi_ll = mean_psi - sd_psi,
+         psi_ul = mean_psi + sd_psi)
+  
+
+prob_occurrence_hab <- ggplot() +
+  geom_point(data = b, aes(x = mean_psi, y = habitat, colour = village), position = position_jitter(), alpha = 0.4) +
+  facet_wrap(~ species) +
+  theme_bw() +
+  labs(y = element_blank(),
+       x = "Mean Psi",
+       colour = "Village",
+       title = "Probability of occurrence")
 
