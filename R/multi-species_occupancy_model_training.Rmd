@@ -26,9 +26,9 @@ The package has several articles which runs through [vignettes](https://www.jeff
 
 ## Probability of occurrence
 
-The true presence or absence ${z}_j$, of a species $i$, at site $j$, arises from a Bernoulli process.
+The true presence or absence ${z}_j$, of a species $i$, at site $j$, during replicate $k$ arises from a Bernoulli process.
 
-$${z}_{i,j}\sim \mathrm{Bernoulli}\left({\psi}_{i,j}\right)$$ ${\psi}_{i,j}$ is the probability of occurrence of species $i$ at site $j$. This is modelled using a logit link following.
+$${z}_{i,j}\sim \mathrm{Bernoulli}\left({\psi}_{i,j}\right)$$ ${\psi}_{i,j,k}$ is the probability of occurrence of species $i$ at site $j$. This is modelled using a logit link following.
 
 $$ \mathrm{logit}\left({\psi}_{i,j}\right)={\boldsymbol{x}}_{i,j}^{\top}\boldsymbol{\beta} $$ $\boldsymbol{\beta}$ is a vector of regression coefficients (including an intercept) that describes the effects of covariates $\boldsymbol{x}_{i,j}$ with ${}^{\top }$ representing the transposition of column vector $\boldsymbol{x}_{i,j}$.
 

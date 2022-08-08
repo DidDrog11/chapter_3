@@ -126,8 +126,11 @@ assign_traps_to_cells <- function(all_sites = sites) {
     return(name)
   })
   
+  names(grids) <- names(grid_coords)
+  
   return(list(select_site = select_site,
-              grid_coords = grid_coords))
+              grid_coords = grid_coords,
+              grids_for_plotting = grids))
   
 }
 
@@ -333,113 +336,121 @@ write_rds(detection_covariates, here("data", "synthetic_data", "detection_covari
 # Occurrence covariates ---------------------------------------------------
 # The primary outcome is the effect of habitat type on occurrence we extract this from the site data
 
-land_use <- synthetic_data$synthetic_sites %>%
-  distinct(unique_site, habitat_group, site_habitat) %>%
-  mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
-                             habitat_group == "village" ~ site_habitat,
-                             habitat_group == "proximal_agriculture" ~ "agriculture",
-                             habitat_group == "distal_agriculture" ~ "agriculture",
-                             TRUE ~ habitat_group)) %>%
-  select(unique_site, landuse)
+if(!file.exists(here("data", "synthetic_data", "occurrence_covariates.rds"))) {
   
-duplicated_land_use <- land_use %>%
-  group_by(unique_site) %>%
-  mutate(n = n()) %>%
-  filter(n >= 2) %>%
-  mutate(landuse = case_when(landuse == "fallow" ~ "agriculture",
-                             landuse == "village_outside" ~ "village_inside",
-                             TRUE ~ landuse)) %>%
-  distinct(unique_site, landuse) %>%
-  ungroup()
-
-land_use <- land_use %>% 
-  filter(!unique_site %in% duplicated_land_use$unique_site) %>%
-  bind_rows(duplicated_land_use) %>%
-  arrange(unique_site)
-
-# Get the bounding box of the village and buffer it by 100m before downloading from OSM
-
-distance_from_building <- function(data = synthetic_data$synthetic_sites, village_name) {
+  land_use <- synthetic_data$synthetic_sites %>%
+    distinct(unique_site, habitat_group, site_habitat) %>%
+    mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
+                               habitat_group == "village" ~ site_habitat,
+                               habitat_group == "proximal_agriculture" ~ "agriculture",
+                               habitat_group == "distal_agriculture" ~ "agriculture",
+                               TRUE ~ habitat_group)) %>%
+    select(unique_site, landuse)
   
-  osm <- opq(st_as_sfc(st_bbox(data %>%
+  duplicated_land_use <- land_use %>%
+    group_by(unique_site) %>%
+    mutate(n = n()) %>%
+    filter(n >= 2) %>%
+    mutate(landuse = case_when(landuse == "fallow" ~ "agriculture",
+                               landuse == "village_outside" ~ "village_inside",
+                               TRUE ~ landuse)) %>%
+    distinct(unique_site, landuse) %>%
+    ungroup()
+  
+  land_use <- land_use %>% 
+    filter(!unique_site %in% duplicated_land_use$unique_site) %>%
+    bind_rows(duplicated_land_use) %>%
+    arrange(unique_site)
+  
+  # Get the bounding box of the village and buffer it by 100m before downloading from OSM
+  
+  distance_from_building <- function(data = synthetic_data$synthetic_sites, village_name) {
+    
+    osm <- opq(st_as_sfc(st_bbox(data %>%
                                  filter(village == village_name) %>%
                                  st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
                                  st_transform(crs = default_CRS)), crs = default_CRS) %>%
                st_buffer(dist = 100) %>%
                st_bbox()) %>%
-    add_osm_feature(key = "building") %>%
-    osmdata_sf()
+      add_osm_feature(key = "building") %>%
+      osmdata_sf()
+    
+    buildings <- osm$osm_polygons %>%
+      st_transform(crs = SL_UTM) %>%
+      st_union()
+    
+    sites <- synthetic_data$synthetic_sites %>%
+      filter(village == village_name) %>%
+      distinct(unique_site, site_easting, site_northing) %>%
+      st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
+      mutate(distance_building = as.numeric(st_distance(., buildings)))
+  }
   
-  buildings <- osm$osm_polygons %>%
-    st_transform(crs = SL_UTM) %>%
-    st_union()
+  distance_building <- lapply(X = c("baiama", "lalehun", "lambayama", "seilama"), function(X) {
+    distance_from_building(village_name = X)
+  }) %>%
+    bind_rows() %>%
+    tibble() %>%
+    distinct(unique_site, distance_building)
   
-  sites <- synthetic_data$synthetic_sites %>%
-    filter(village == village_name) %>%
+  # We also use the distance from the centre of the village site these are stored as coordinates
+  village_coords <- tibble(village = c("baiama", "lalehun", "lambayama", "seilama"),
+                           X = c(-11.268454, -11.0803, -11.198249, -11.193628469657279),
+                           Y = c(7.83708, 8.197533, 7.854131, 8.122285428353395)) %>%
+    st_as_sf(coords = c("X", "Y"), crs = default_CRS) %>%
+    st_transform(crs = SL_UTM)
+  
+  distance_from_centre <- synthetic_data$synthetic_sites %>%
     distinct(unique_site, site_easting, site_northing) %>%
     st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
-    mutate(distance_building = as.numeric(st_distance(., buildings)))
-}
-
-distance_building <- lapply(X = c("baiama", "lalehun", "lambayama", "seilama"), function(X) {
-  distance_from_building(village_name = X)
-}) %>%
-  bind_rows() %>%
-  tibble() %>%
-  distinct(unique_site, distance_building)
-
-# We also use the distance from the centre of the village site these are stored as coordinates
-village_coords <- tibble(village = c("baiama", "lalehun", "lambayama", "seilama"),
-                         X = c(-11.268454, -11.0803, -11.198249, -11.193628469657279),
-                         Y = c(7.83708, 8.197533, 7.854131, 8.122285428353395)) %>%
-  st_as_sf(coords = c("X", "Y"), crs = default_CRS) %>%
-  st_transform(crs = SL_UTM)
-
-distance_from_centre <- synthetic_data$synthetic_sites %>%
-  distinct(unique_site, site_easting, site_northing) %>%
-  st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
-  mutate(distance_centre = case_when(str_detect(unique_site, "baiama") ~ as.numeric(st_distance(., village_coords %>%
-                                                                                       filter(village == "baiama"))),
-                                     str_detect(unique_site, "lalehun") ~ as.numeric(st_distance(., village_coords %>%
-                                                                                                  filter(village == "lalehun"))),
-                                     str_detect(unique_site, "lambayama") ~ as.numeric(st_distance(., village_coords %>%
-                                                                                                  filter(village == "lambayama"))),
-                                     str_detect(unique_site, "seilama") ~ as.numeric(st_distance(., village_coords %>%
-                                                                                                  filter(village == "seilama"))),
-                                     TRUE ~ as.numeric(NA))) %>%
-  tibble() %>%
-  distinct(unique_site, distance_centre)
-
-# Elevation will also be used as an occurrence covariate
-# This method is currently failing due to an invalid/expired certificate
-# elevation_3s(lon = tile_coords[1], lat = tile_coords[2], path = here("data", "geodata"))
-# Will use the elevatr package instead for this we need a data.frame with the centre of each village
-
-elevation_rast <- get_elev_raster(locations = village_coords %>%
-                                    st_transform(crs = default_CRS), prj = default_CRS, z = 12) %>%
-  rast()
-
-elevation_vect <- vect(synthetic_data$synthetic_sites %>%
-  distinct(unique_site, site_easting, site_northing) %>%
-  st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
-  st_transform(crs = default_CRS))
+    mutate(distance_centre = case_when(str_detect(unique_site, "baiama") ~ as.numeric(st_distance(., village_coords %>%
+                                                                                                  filter(village == "baiama"))),
+                                       str_detect(unique_site, "lalehun") ~ as.numeric(st_distance(., village_coords %>%
+                                                                                                   filter(village == "lalehun"))),
+                                       str_detect(unique_site, "lambayama") ~ as.numeric(st_distance(., village_coords %>%
+                                                                                                     filter(village == "lambayama"))),
+                                       str_detect(unique_site, "seilama") ~ as.numeric(st_distance(., village_coords %>%
+                                                                                                   filter(village == "seilama"))),
+                                       TRUE ~ as.numeric(NA))) %>%
+    tibble() %>%
+    distinct(unique_site, distance_centre)
   
-elevation_vect$elevation <- terra::extract(elevation_rast, elevation_vect)[, 2]
-
-elevation <- data.frame(elevation_vect)
-
-
-# Occurrence covariates combined ------------------------------------------
-
-occurrence_covariates <- synthetic_data$synthetic_sites %>%
-  distinct(village, unique_site) %>%
-  left_join(land_use, by = c("unique_site")) %>%
-  left_join(distance_building, by = c("unique_site")) %>%
-  left_join(distance_from_centre, by = c("unique_site")) %>%
-  left_join(elevation, by = c("unique_site")) %>%
-  arrange(unique_site)
-
-write_rds(occurrence_covariates, here("data", "synthetic_data", "occurrence_covariates.rds"))
+  # Elevation will also be used as an occurrence covariate
+  # This method is currently failing due to an invalid/expired certificate
+  # elevation_3s(lon = tile_coords[1], lat = tile_coords[2], path = here("data", "geodata"))
+  # Will use the elevatr package instead for this we need a data.frame with the centre of each village
+  
+  elevation_rast <- get_elev_raster(locations = village_coords %>%
+                                    st_transform(crs = default_CRS), prj = default_CRS, z = 12) %>%
+    rast()
+  
+  elevation_vect <- vect(synthetic_data$synthetic_sites %>%
+                         distinct(unique_site, site_easting, site_northing) %>%
+                         st_as_sf(coords = c("site_easting", "site_northing"), crs = SL_UTM) %>%
+                         st_transform(crs = default_CRS))
+  
+  elevation_vect$elevation <- terra::extract(elevation_rast, elevation_vect)[, 2]
+  
+  elevation <- data.frame(elevation_vect)
+  
+  
+  # Occurrence covariates combined ------------------------------------------
+  
+  occurrence_covariates <- synthetic_data$synthetic_sites %>%
+    distinct(village, unique_site) %>%
+    left_join(land_use, by = c("unique_site")) %>%
+    left_join(distance_building, by = c("unique_site")) %>%
+    left_join(distance_from_centre, by = c("unique_site")) %>%
+    left_join(elevation, by = c("unique_site")) %>%
+    arrange(unique_site)
+  
+  write_rds(occurrence_covariates, here("data", "synthetic_data", "occurrence_covariates.rds"))
+  
+} else {
+  
+  occurrence_covariates <- read_rds(here("data", "synthetic_data", "occurrence_covariates.rds"))
+  
+}
 
 # Site coordinates --------------------------------------------------------
 
@@ -450,3 +461,8 @@ coords <- synthetic_data$synthetic_sites %>%
 coord_array <- array(data = c(coords$site_easting, coords$site_northing), dim = c(nrow(coords), 2), dimnames = list(c(coords$unique_site), c("X", "Y")))
 
 write_rds(coord_array, here("data", "synthetic_data", "site_coords.rds"))
+
+
+# Habitat use for SDM -----------------------------------------------------
+
+

@@ -1,0 +1,315 @@
+combined_data$trap_data <- combined_data$trap_data %>%
+  filter(village != "bambawo")
+
+combined_data$rodent_data <- combined_data$rodent_data %>%
+  filter(!str_detect(trap_uid, "bambawo"))
+
+grids <- list()
+
+for(i in 1:length(sites_grids$grids_for_plotting)) {
+  
+  grid_site <- names(sites_grids$grids_for_plotting[i])
+  
+  grids[[i]] <- tibble(sites_grids$grids_for_plotting[[i]]) %>%
+    mutate(grid_id = grid_site)
+  
+}
+
+grids <- grids %>%
+  bind_rows() %>%
+  st_as_sf() %>%
+  rename(geometry = 1)
+
+sites <- synthetic_data$synthetic_sites %>%
+  mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
+                             habitat_group == "village" ~ site_habitat,
+                             habitat_group == "proximal_agriculture" ~ "agriculture",
+                             habitat_group == "distal_agriculture" ~ "agriculture",
+                             TRUE ~ habitat_group)) %>%
+  st_as_sf(coords = c("trap_easting", "trap_northing"), crs = SL_UTM)
+
+detections <- synthetic_data$synthetic_detections
+
+occurrence_covariates
+
+detection_covariates
+
+
+# Description trapping effort -------------------------------------------
+
+number_trap_nights <- nrow(sites) * 4
+
+number_visits <- length(unique(sites$visit))
+
+median_number_trap_visit <- sites %>%
+  tibble() %>%
+  group_by(village, visit)  %>%
+  summarise(n = n()) %>%
+  group_by(village) %>%
+  summarise(tn_median = median(n),
+            tn_min = min(n),
+            tn_max = max(n))
+
+# Description trapping locations ------------------------------------------
+
+land_use_type <- sites %>%
+  tibble() %>%
+  mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
+                             habitat_group == "village" ~ site_habitat,
+                             habitat_group == "proximal_agriculture" ~ "agriculture",
+                             habitat_group == "distal_agriculture" ~ "agriculture",
+                             TRUE ~ habitat_group)) %>%
+  group_by(village, landuse) %>%
+  summarise(tn = n() * 4)
+
+# plot of grids by village
+traps_in_grid <- mapply(X = sites %>%
+  group_by(village, grid_number) %>%
+  group_split(),
+  Y = grids %>%
+    mutate(village = str_split(grid_id, "_", simplify = TRUE)[, 1],
+           grid = as.numeric(str_split(grid_id, "_", simplify = TRUE)[, 2])) %>%
+    group_by(village, grid) %>%
+    group_split(),
+  function(X, Y) {
+    list(st_join(X, Y, st_within))
+  }) %>%
+  do.call(rbind, .) %>%
+  select(village = village.x, visit, grid_number, trap_number, site_habitat, grid_id, trap_point = geometry)
+
+grids_with_traps <- mapply(X = sites %>%
+                             group_by(village, grid_number) %>%
+                             group_split(),
+                           Y = grids %>%
+                             mutate(village = str_split(grid_id, "_", simplify = TRUE)[, 1],
+                                    grid = as.numeric(str_split(grid_id, "_", simplify = TRUE)[, 2])) %>%
+                             group_by(village, grid) %>%
+                             group_split(),
+                           function(X, Y) {
+                             list(st_join(Y, X, st_contains, left = FALSE))
+                           }) %>%
+  do.call(rbind, .) %>%
+  select(village = village.x, grid_number, landuse, grid_id, grid_polygon = geometry)
+
+f <- function(i) paste(i, collapse="_")
+
+grids_with_traps$grp <- factor(sapply(st_equals(grids_with_traps), f))
+
+grids_with_traps <- grids_with_traps %>%
+  group_by(grp) %>%
+  mutate(tn = n() * 4) %>%
+  distinct() %>%
+  group_by(village) %>%
+  group_split()
+
+osm_bbox <- lapply(X = grids_with_traps, function(X) {X %>% group_by(village) %>% mutate(geometry = st_union(.)) %>% distinct(village, geometry)}) %>%
+  do.call(rbind, .) %>%
+  st_as_sf(crs = SL_UTM) %>%
+  st_transform(crs = default_CRS) %>%
+  group_split()
+
+names(osm_bbox) <- c("baiama", "lalehun", "lambayama", "seilama")
+
+bg = lapply(X = osm_bbox, function(X) {osm.raster(extract_bbox(st_bbox(X)), zoomin = + 2)})
+bg = lapply(X = bg, function(X) {rast(X) %>%
+    project(y = SL_UTM)})
+
+grids_plot <- list()
+
+for(i in 1:length(grids_with_traps))  {
+  
+  grids_plot[[i]] <- ggplot() + 
+    geom_spatraster_rgb(data = bg[[i]]) +
+    geom_sf(data = grids_with_traps[[i]], aes(fill = tn, colour = tn)) +
+    scale_colour_viridis_c(limits = c(0, 100)) +
+    scale_fill_viridis_c(limits = c(0, 100)) +
+    guides(colour = "none") +
+    facet_wrap(~ landuse) +
+    labs(fill = "Number Trap-Nights",
+         title = str_to_sentence(unique(grids_with_traps[[i]]$village))) +
+    theme_bw() +
+    theme(legend.position = "none")
+
+}
+
+combined_grids <- plot_grid(plotlist = grids_plot)
+save_plot(plot = combined_grids, filename = here("output", "grid_locations.pdf"), base_height = 9)
+
+# Description rodents trapped ---------------------------------------------
+
+number_rodents <- nrow(detections)
+
+trap_success_rate <- round(number_rodents/number_trap_nights * 100, 1)
+
+trap_success_rate_df <- detections %>%
+  select(trap_uid) %>%
+  left_join(sites %>%
+              tibble() %>%
+              mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
+                                         habitat_group == "village" ~ site_habitat,
+                                         habitat_group == "proximal_agriculture" ~ "agriculture",
+                                         habitat_group == "distal_agriculture" ~ "agriculture",
+                                         TRUE ~ habitat_group)) %>%
+              select(trap_uid, village, landuse),
+            by = "trap_uid") %>%
+  distinct() %>%
+  drop_na() %>%
+  group_by(village, landuse) %>%
+  summarise(n_rodents = n()) %>%
+  left_join(land_use_type, by = c("village", "landuse")) %>%
+  mutate(trap_success = round(n_rodents/tn * 100, 1))
+  
+
+# Description species trapped ---------------------------------------------
+
+species_trapped <- combined_data$rodent_data %>%
+  mutate(village = str_split(trap_uid, "_", simplify = TRUE)[, 1]) %>%
+  group_by(clean_names, village) %>%
+  summarise(n = n()) %>%
+  drop_na(clean_names)
+
+species_trap_success_rate <- combined_data$rodent_data %>%
+  select(rodent_uid, trap_uid, clean_names) %>%
+  left_join(combined_data$trap_data %>%
+              tibble() %>%
+              mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
+                                         habitat_group == "village" ~ site_habitat,
+                                         habitat_group == "proximal_agriculture" ~ "agriculture",
+                                         habitat_group == "distal_agriculture" ~ "agriculture",
+                                         TRUE ~ habitat_group)) %>%
+              select(trap_uid, village, landuse),
+            by = "trap_uid") %>%
+  distinct() %>%
+  group_by(clean_names, village, landuse) %>%
+  summarise(n = n()) %>%
+  drop_na(clean_names) %>%
+  left_join(., trap_success_rate_df %>%
+              group_by(village, landuse) %>%
+              summarise(tn = sum(tn))) %>%
+  mutate(trap_success = round(n/tn * 100, 1))
+
+
+# Species diversity -------------------------------------------------------
+
+richness <- sites %>%
+  tibble() %>%
+  distinct(village, grid_number, unique_site, trap_uid, landuse) %>%
+  left_join(detections, by = c("village", "grid_number", "trap_uid")) %>%
+  group_by(village, grid_number, unique_site, landuse, clean_names) %>%
+  summarise(n = n()) %>%
+  ungroup()
+
+richness$n[is.na(a$clean_names)] <- 0
+richness$n[!is.na(a$clean_names)] <- 1
+
+richness_landuse <- richness %>%
+  select(village, landuse, clean_names, n) %>%
+  filter(n != 0) %>%
+  distinct() %>%
+  group_by(village, landuse) %>%
+  summarise(species_richness = n())
+
+diversity_village <- richness %>%
+  filter(!is.na(clean_names)) %>%
+  group_by(village, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  group_by(village) %>%
+  summarise(N = sum(n),
+            shannon_diversity = diversity(n, index = "shannon", MARGIN = 2)) %>%
+  arrange(-shannon_diversity)
+
+diversity_landuse <- richness %>%
+  filter(!is.na(clean_names)) %>%
+  group_by(landuse, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  group_by(landuse) %>%
+  summarise(N = sum(n),
+            shannon_diversity = diversity(n, index = "shannon", MARGIN = 2)) %>%
+  arrange(-shannon_diversity)
+
+diversity_both <- richness %>%
+  filter(!is.na(clean_names)) %>%
+  group_by(village, landuse, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  group_by(village, landuse) %>%
+  summarise(N = sum(n),
+            shannon_diversity = diversity(n, index = "shannon", MARGIN = 2)) %>%
+  arrange(-shannon_diversity)
+
+dissimilarity_df <- richness %>%
+  filter(!is.na(clean_names)) %>%
+  group_by(village, landuse, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  pivot_wider(names_from = clean_names, values_from = n, values_fill = 0) %>%
+  ungroup() %>%
+  select(-village, -landuse)
+
+jaccard_dis <- vegdist(dissimilarity_df, method = "jaccard", binary = FALSE)
+jaccard_hclus <- hclust(jaccard_dis)
+
+jaccard_labs <- richness %>%
+  filter(!is.na(clean_names)) %>%
+  group_by(village, landuse, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  pivot_wider(names_from = clean_names, values_from = n, values_fill = 0) %>%
+  ungroup() %>%
+  mutate(labs = paste0(str_sub(village, end = 3), "_", landuse)) %>%
+  pull(labs)
+
+jaccard_hclus[["labels"]] = jaccard_labs[jaccard_hclus[["order"]]]
+
+plot(jaccard_hclus)
+
+# Species accumulation graphs for supplementary
+baiama_accum <- richness %>%
+  filter(village == "baiama") %>%
+  group_by(unique_site, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = clean_names, values_from = n, values_fill = 0) %>%
+  select(-unique_site, -`NA`) %>%
+  specaccum(comm = ., method = "exact")
+
+lalehun_accum <- richness %>%
+  filter(village == "lalehun") %>%
+  group_by(unique_site, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = clean_names, values_from = n, values_fill = 0) %>%
+  select(-unique_site, -`NA`) %>%
+  specaccum(comm = ., method = "exact")
+
+lambayama_accum <- richness %>%
+  filter(village == "lambayama") %>%
+  group_by(unique_site, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = clean_names, values_from = n, values_fill = 0) %>%
+  select(-unique_site, -`NA`) %>%
+  specaccum(comm = ., method = "exact")
+
+seilama_accum <- richness %>%
+  filter(village == "seilama") %>%
+  group_by(unique_site, clean_names) %>%
+  summarise(n = sum(n)) %>%
+  ungroup() %>%
+  pivot_wider(names_from = clean_names, values_from = n, values_fill = 0) %>%
+  select(-unique_site, -`NA`) %>%
+  specaccum(comm = ., method = "exact")
+
+combined_accumulation <- tibble(Village = c(rep("Baiama", length(baiama_accum$sites)),
+                                            rep("Lalehun", length(lalehun_accum$sites)),
+                                            rep("Lambayama", length(lambayama_accum$sites)),
+                                            rep("Seilama", length(seilama_accum$sites))),
+                                Sites = c(baiama_accum$sites, lalehun_accum$sites, lambayama_accum$sites, seilama_accum$sites),
+                                Richness = c(baiama_accum$richness, lalehun_accum$richness, lambayama_accum$richness, seilama_accum$richness),
+                                sd = c(baiama_accum$sd, lalehun_accum$sd, lambayama_accum$sd, seilama_accum$sd))
+
+accumulation_plot <- ggplot(combined_accumulation) +
+  geom_line(aes(x = Sites, y = Richness, colour = Village)) +
+  geom_ribbon(aes(x = Sites, ymin = Richness - sd, ymax = Richness + sd, colour = Village, fill = Village), alpha = 0.2) +
+  scale_colour_manual(values = village_palette) +
+  scale_fill_manual(values = village_palette) +
+  theme_bw()
+
+save_plot(plot = accumulation_plot, base_width = 10, filename = here("output", "species_accumulation.pdf"))
