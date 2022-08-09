@@ -4,6 +4,7 @@ pkgs =
   c("coda",
     "cowplot",
     "elevatr",
+    "flextable",
     "geodata",
     "googledrive",
     "here",

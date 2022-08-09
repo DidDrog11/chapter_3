@@ -17,6 +17,8 @@ output:
 bibliography: citations.bib
 categories:
   - Lassa
+header-includes:
+    - \usepackage{caption}
 ---
 
 ```{r setup, include=FALSE, quietly=TRUE}
@@ -25,7 +27,11 @@ knitr::opts_chunk$set(
 	message = FALSE,
 	warning = FALSE
 )
+
+library(flextable)
 library(here)
+library(tidyverse)
+
 ```
 
 # Abstract
@@ -90,10 +96,9 @@ We produce rodent species networks at multiple temporal and geographic scales. T
 
 First, we adopted a Bayesian multi-species occupancy framework to analyse rodent trapping data in the presence of incomplete detection. We implemented a model to estimate occupancy and species richness in each habitat type studied. Models were defined using the `spOccupancy` package in the R statistical computing language [@doser_spoccupancy_2022; @r_core_team_r_2021]. This approach models the true presence or absence (${z}$) of a species ($i$), at site ($j$) as arising from a Bernoulli process (Equation 1.). Where ${\psi}_{j}$ is the probability of occurrence of a species at a site during a given replicate. This is modelled using a logit link where $\beta_{i}$ are the regression coefficients, including an intercept that describes the effects of covariates $\boldsymbol{x}_{i,j}$ with ${}^{\top }$ representing the transposition of column vector $\boldsymbol{x}_{i,j}$ (Equation 2.).
 
-
 \begin{align}
-  {z}_{i,j}\sim \mathrm{Bernoulli}\left({\psi}_{i,j}\right)\\
-  \mathrm{logit}\left({\psi}_{i,j}\right)={\boldsymbol{x}}_{i,j}^{\top}\boldsymbol{\beta_{i}}
+{z}_{i,j}\sim \mathrm{Bernoulli}\left({\psi}_{i,j}\right)\\
+\mathrm{logit}\left({\psi}_{i,j}\right)={\boldsymbol{x}}_{i,j}^{\top}\boldsymbol{\beta_{i}}
 \end{align}
 
 The regression coefficients in these multi-species occupancy models are described as random effects arising from a common community level distribution (Equation 3.). Where $\boldsymbol{\mu}_{\beta}$ represents the community level mean effect for each occurrence covariate effect and $\boldsymbol{T}_{\beta}$ is a diagonal matrix representing the variability of these among species in the community.
@@ -102,14 +107,14 @@ The regression coefficients in these multi-species occupancy models are describe
 \boldsymbol{\beta}_i \sim \text{Normal}(\boldsymbol{\mu}_{\beta}, \boldsymbol{T}_{\beta})
 \end{align}
 
-The detection component estimates the unobserved ${z}_{i,j}$. Here, ${y}_{i,j,k}$ is the observed detection or non-detection of a species $i$, at site $j$, during replicate $k$ (Equation 4.). This is approached as arising from a Bernoulli process conditional on the true latent occurrence process ${p}_{i,j,k}$. The probability of a species being detected at a site, during a replicate (given it is present at site $j$), is a function of site and replicate specific covariates $V$ and a set of species-specific regression coefficients ${\alpha}_{i}$ (Equation 4.). 
+The detection component estimates the unobserved ${z}_{i,j}$. Here, ${y}_{i,j,k}$ is the observed detection or non-detection of a species $i$, at site $j$, during replicate $k$ (Equation 4.). This is approached as arising from a Bernoulli process conditional on the true latent occurrence process ${p}_{i,j,k}$. The probability of a species being detected at a site, during a replicate (given it is present at site $j$), is a function of site and replicate specific covariates $V$ and a set of species-specific regression coefficients ${\alpha}_{i}$ (Equation 5.). 
 
 \begin{align}
-  {y}_{i,j,k}\sim \mathrm{Bernoulli}\left({p}_{i,j,k}{z}_{i,j}\right)\\
-  \mathrm{logit}\left({p}_{i,j,k}\right)={\boldsymbol{v}}_{i,j,k}^{\top}\boldsymbol{\alpha}
+{y}_{i,j,k}\sim \mathrm{Bernoulli}\left({p}_{i,j,k}{z}_{i,j}\right)\\
+\mathrm{logit}\left({p}_{i,j,k}\right)={\boldsymbol{v}}_{i,j,k}^{\top}\boldsymbol{\alpha}
 \end{align}
 
-Similarly to Equation 3. these coefficients are described as random effects arising from a common community level distribution, where $\boldsymbol{\mu}_{\alpha$ represents the community level mean effect for each detection covariate effect and $\boldsymbol{T}_{\alpha}$ is a diagonal matrix representing the variability of these among species in the community.
+Similarly to Equation 3. these coefficients are described as random effects arising from a common community level distribution, where $\boldsymbol{\mu}_{\alpha}$ represents the community level mean effect for each detection covariate effect and $\boldsymbol{T}_{\alpha}$ is a diagonal matrix representing the variability of these among species in the community (Equation 6.).
 
 \begin{align}
 \boldsymbol{\alpha}_i \sim \text{Normal}(\boldsymbol{\mu}_{\alpha}, \boldsymbol{T}_{\alpha})
@@ -117,16 +122,27 @@ Similarly to Equation 3. these coefficients are described as random effects aris
 
 Minimally informative priors were specified for community and species level coefficients (${\alpha}$ and ${\beta}$, a normal prior of mean = 0, variance = 2.72) and for community level occurrence and detection variance parameters ($\boldsymbol{T}_{\alpha}$ and $\boldsymbol{T}_{\beta}$, 0.1 for the scale and shape parameters of the inverse Gamma prior).
 
-We included covariates in the model based on a pre-specified Directed Acyclic Graph and after assessing for co-linearity (defined as strong correlation >0.8) among variables (Supplementary Figure 2.). Continuous variables were standardised by scaling to values between 0-1. The fully specified model was defined as follows.
+We included covariates in the model based on a pre-specified Directed Acyclic Graph and after assessing for co-linearity (defined as strong correlation >0.8) among variables (Supplementary Figure 2.). Continuous variables were standardised by scaling to values between 0-1. The fully specified model is defined in Equation 6 and 7.
 
-\begin{align}
-  Probability of occurrence \~ (species_specific_intercept \* Forested) + (species_specific_intercept \* Agricultural) + (species_specific_intercept \* Housing)\\
-  Probability of detection \~ (species_specific_intercept \* monthly_precipitation) (**Difficult to tease out whether this is a detection or occurrence factor**)
-\end{align}
+$$
+\text{Probability of occurrence} \sim \text{Landuse} + \text{Village} + \text{scale}(\text{Distance to permanent structure}) +\\ \text{scale}(\text{Distance to village centre}) + \text{scale}(\text{Elevation}) \tag{7}
+$$
+$$
+\text{Probability of detection} \sim \text{scale}(\text{Monthly precipitation}) + \text{Moon fraction} + \text{scale}(\text{Number of trap nights}) \tag{8}
+$$
 
 Using this model, we calculate the effect of landuse as the difference in occupancy probability for each species between each of the four land use classifications. Only estimates for species with at least X records to avoid inference from limited data. Occupancy is interpreted here as the species' probability of being detected through a successful trapping event during the study. We estimate species richness in each habitat type by obtaining the sum of species at a trapping site for each iteration of the Bayesian sampling process to compare rodent assemblage responses to land use classification.
 
 ### Co-location of species
+
+To investigate the presence of competitive exclusion by rodent species in this setting we adopted a Binomial joint likelihood model fit using Integrated Nested Laplace Approximation (INLA) in the R statistical computing language  [@rue_approximate_2009; @martins_bayesian_2013].Here we set up co-occurrence models to estimate the probability of detection of two species $Y_{a}$ and $Y_{b}$ (Equation 8). Here, ${\gamma}$ is the species specific intercept for species ${a}$ and ${b}$ respectively. ${A.co.B}$ and ${B.co.A}$ represent the co-occurrence of species ${a}$ with species ${b}$ and species ${b}$ with species ${a}$ respectively.
+
+\begin{align}
+{Y}_{a} \sim {\gamma}_{a} + \mathrm{A.co.B} \tag{9} \\ 
+{Y}_{b} \sim {\gamma}_{b} + \mathrm{B.co.A} \tag{10}
+\end{align}
+
+Minimally informative priors were set for the intercept and species co-occurrence variables with a mean of 0 and precision of 1.
 
 ### Species distribution maps for current land use classifications and potential future change
 
@@ -136,25 +152,52 @@ Using projected land use change/climate change we will produce future potential 
 
 # Results
 
-During the study period 749 small mammals were obtained from 40,152 trap-nights across the four study villages (1.9% Trap-success). We identified X small mammal species though molecular techniques. The most commonly trapped species was *M. natalensis* (N, %), followed by ... (Table 1.). There was large variation in the occurrence of these species between study villages and study period (Supplementary Table 1.). For example, *M. musculus* was the most commonly trapped species within the Lambayama village site while it was rarely trapped in any of the other village sites.
-
 ## Rodent occurrence and species assemblage structure
 
-Trapping effort was adequate across all four village sites, with saturation of species accumulation curves reached. Species diversity and richness was greatest in Seilama and lowest in Lambayama. The rodent assemblages in Seilama comprised the greatest number of species with relatively high prevalence of X, Y and Z and lower numbers of A, B and C. Similar patterns were observed in Lalehun and Baiama. The peri-urban site Lambayama had importantly different assemblage structure, dominated by a single species *M. musculus* with fewer detections of native small mammal species.
+During the study period 749 small mammals were obtained from 40,152 trap-nights across the four study villages (1.9% trap-success (TS)). The greatest number of small mammals were detected in agricultural settings, these communities also had the greatest species richness and Shannon diversity. However, the greatest TS was obtained from traps set within households, although in these settings species richness and diversity was lower (Table 1a). Seilama and Lalehun had the highest overall TS, species richness and Shannon diversity although the habitat types with the highest values of these metrics differed between the villages. Lambayama the most urbanised village had the lowest species richness and Shannon diversity with the majority of rodents trapped within households.
 
-```{r study-activity, layout = "l-page", fig.cap = "Figure 2. Timeline of trapping activity at village sites. Intensity of the colour relates to the number of trap nights obtained during the trapping visit. The blue shaded area represents the rainy season in Eastern Sierra Leone (monthly precipitation >300mm)"}
+\captionsetup[table]{labelformat=empty}
 
-# knitr::include_graphics(here("output", "figures", "timeline_plot.png"))
+```{r table-1a, layout = "l-page", tab.cap = "Table 1a. The number of individual small mammals (N), the number of trap nights (TN), trap-success (TS %), species richness and Shannon diversity are presented for each village and landuse type."}
+
+table_1a <- readRDS(here("output", "table_1a.rds"))
+table_1a %>%
+  as_grouped_data(groups = c("village")) %>%
+  flextable() %>%
+  autofit() %>%
+  set_header_labels(landuse = "Landuse",
+                    village = "Village",
+                    N = "N",
+                    TN = "TN (TS %)",
+                    species_richness = "Species richness",
+                    shannon_diversity = "Shannon diversity") %>%
+  fit_to_width(6)
 
 ```
 
-We found little variation in species richness by season, however, prevalence of species (measured by trap-success) fell for most species, except *M. natalensis* which was more commonly trapped (greater trap-success) during the wet season in indoor settings across the three village sites in which it was prevalent.
+The most commonly detected rodent species was *M. natalensis* (N = 144, 19.2%), followed by *R. rattus* (N = 90, 12%), *M. musculus* (N = 86, 11.5%) and *Lophuromys rostratus* (N = 74, 9.9%) (Table 1b.). *M. natalensis* and *R. rattus* were detected in all villages with *M. natalensis* never detected in fallow or forest settings. Conversely, *Hybomys planifrons* and *Gerbilliscus kempii* were only detected in a single village and in forest and fallow settings respectively. The invasive rodent *M. musculus* was only detected in Lambayama and Seilama village settings. We found little variation in species richness by season, however, prevalence of species (measured by trap-success) fell for most species, except *M. natalensis* which was more commonly trapped (greater trap-success) during the wet season in indoor settings across the three village sites in which it was prevalent (Supplementary Table 1.).
+
+```{r table-1a, layout = "l-page", tab.cap = "Table 1b. The location of detection of individual small mammals by species. Values in paranthesis are the TS % for that species in the village and landuse for the associated traps."}
+
+table_1b <- readRDS(here("output", "table_1b.rds"))
+table_1b %>%
+  as_grouped_data(groups = "clean_names") %>%
+  flextable() %>%
+  autofit() %>%
+  set_header_labels(clean_names = "Species",
+                    village = "Village") %>%
+  fit_to_width(6)
+
+```
+
 
 ## Rodent species networks
 
 Rodent species networks varied by village and habitat type. The largest networks (greatest number of co-located species) were obtained from the villages Seilama and Lalehun.
 
 ## Estimating the effect of land use on species occurrence and richness
+
+We identified landuse level and village level variability in the occurrence of small mammal species in our model incorporating incomplete detection. 
 
 -   Model seasonal change in a) relative abundance of all rodents and b) number of species by seasonal indicators and proportions of different land use types as covariates
 -   Species distribution maps will be produced

@@ -335,7 +335,15 @@ a <- interp_1 %>%
   mutate(metric = case_when(str_detect(name, "mean") ~ "mean",
                             str_detect(name, "sd") ~ "sd"),
          species = str_remove_all(name, "_mean|_sd")) %>%
-  select(village, habitat, species, metric, psi)
+  select(village, habitat, species, metric, psi) %>%
+  group_by(village, habitat, species, metric) %>%
+  mutate(n = row_number()) %>%
+  pivot_wider(names_from = metric, values_from = psi)
+
+t <- a %>%
+  filter(village == "lambayama" & species == "mus_musculus") %>%
+  group_by(habitat) %>%
+  group_split()
 
 b <- a %>%
   filter(metric == "mean") %>%
@@ -347,12 +355,13 @@ b <- a %>%
               rename(sd = metric,
                      sd_psi = psi) %>%
               select(sd_psi)) %>%
-  mutate(psi_ll = mean_psi - sd_psi,
-         psi_ul = mean_psi + sd_psi)
-  
+  rowwise() %>%
+  mutate(psi = rnorm(1, mean = mean_psi, sd = sd_psi))
+
+b$psi[b$psi <= 0] <- 0  
 
 prob_occurrence_hab <- ggplot() +
-  geom_point(data = b, aes(x = mean_psi, y = habitat, colour = village), position = position_jitter(), alpha = 0.4) +
+  geom_histogram(data = b, aes(x = psi, y = habitat, colour = village), alpha = 0.4) +
   facet_wrap(~ species) +
   theme_bw() +
   labs(y = element_blank(),

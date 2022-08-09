@@ -162,21 +162,25 @@ trap_success_rate_df <- detections %>%
 
 # Description species trapped ---------------------------------------------
 
-species_trapped <- combined_data$rodent_data %>%
-  mutate(village = str_split(trap_uid, "_", simplify = TRUE)[, 1]) %>%
+species_trapped <- detections %>%
   group_by(clean_names, village) %>%
   summarise(n = n()) %>%
-  drop_na(clean_names)
+  drop_na(clean_names) %>%
+  group_by(clean_names) %>%
+  mutate(N = sum(n)) %>%
+  arrange(-N)
 
-species_trap_success_rate <- combined_data$rodent_data %>%
-  select(rodent_uid, trap_uid, clean_names) %>%
-  left_join(combined_data$trap_data %>%
+species_order <- unique(str_to_sentence(str_replace_all(species_trapped$clean_names, "_", " ")))
+landuse_order <- c("village_inside", "village_outside", "agriculture", "fallow", "forest")
+names(landuse_order) <- c("Village (inside)", "Village (outside)", "Agriculture", "Fallow land", "Forest")
+village_order <- c("baiama", "lalehun", "lambayama", "seilama")
+names(village_order) <- c("Baiama", "Lalehun", "Lambayama", "Seilama")
+
+
+species_trap_success_rate <- detections %>%
+  select(trap_uid, clean_names) %>%
+  left_join(sites %>%
               tibble() %>%
-              mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
-                                         habitat_group == "village" ~ site_habitat,
-                                         habitat_group == "proximal_agriculture" ~ "agriculture",
-                                         habitat_group == "distal_agriculture" ~ "agriculture",
-                                         TRUE ~ habitat_group)) %>%
               select(trap_uid, village, landuse),
             by = "trap_uid") %>%
   distinct() %>%
@@ -186,8 +190,44 @@ species_trap_success_rate <- combined_data$rodent_data %>%
   left_join(., trap_success_rate_df %>%
               group_by(village, landuse) %>%
               summarise(tn = sum(tn))) %>%
-  mutate(trap_success = round(n/tn * 100, 1))
+  mutate(trap_success = round(n/tn * 100, 1),
+         value = paste0(n, " (", if(trap_success <= 0.1) "<0.1" else trap_success, "%)"),
+         clean_names = factor(str_to_sentence(str_replace_all(clean_names, "_", " ")), levels = species_order),
+         landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order)),
+         village = factor(village, levels = village_order, labels = names(village_order))) %>%
+  select(clean_names, village, landuse, value) %>%
+  arrange(landuse) %>%
+  pivot_wider(names_from = landuse, values_from = value, values_fill = "-") %>%
+  arrange(clean_names, village)
 
+species_trap_success_village <- detections %>%
+  select(trap_uid, clean_names) %>%
+  left_join(sites %>%
+              tibble() %>%
+              select(trap_uid, village, landuse),
+            by = "trap_uid") %>%
+  distinct()  %>%
+  group_by(clean_names, village, landuse) %>%
+  summarise(n = n()) %>%
+  drop_na(clean_names) %>%
+  left_join(., trap_success_rate_df %>%
+              group_by(village) %>%
+              summarise(tn = sum(tn))) %>%
+  group_by(clean_names, village) %>%
+  summarise(n = sum(n),
+            tn = median(tn)) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(trap_success = round(n/tn * 100, 1),
+         value = paste0(n, " (", if(trap_success <= 0.1) "<0.1" else trap_success, "%)"),
+         clean_names = factor(str_to_sentence(str_replace_all(clean_names, "_", " ")), levels = species_order),
+         village = factor(village, levels = village_order, labels = names(village_order)),
+         Combined = value) %>%
+  select(clean_names, village, Combined)
+
+table_1b <- left_join(species_trap_success_village, species_trap_success_rate, by = c("clean_names", "village"))
+
+write_rds(table_1b, here("output", "table_1b.rds"))
 
 # Species diversity -------------------------------------------------------
 
@@ -199,42 +239,128 @@ richness <- sites %>%
   summarise(n = n()) %>%
   ungroup()
 
-richness$n[is.na(a$clean_names)] <- 0
-richness$n[!is.na(a$clean_names)] <- 1
+richness$n[is.na(richness$clean_names)] <- 0
+richness$n[!is.na(richness$clean_names)] <- 1
+
+richness_village <- richness %>%
+  select(village, clean_names, n) %>%
+  filter(n != 0) %>%
+  distinct() %>%
+  group_by(village) %>%
+  summarise(species_richness = n()) %>%
+  mutate(village = factor(village, levels = village_order, labels = names(village_order)))
 
 richness_landuse <- richness %>%
+  select(landuse, clean_names, n) %>%
+  filter(n != 0) %>%
+  distinct() %>%
+  group_by(landuse) %>%
+  summarise(species_richness = n()) %>%
+  mutate(landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order)),
+         village = "Combined")
+
+richness_landuse_village <- richness %>%
   select(village, landuse, clean_names, n) %>%
   filter(n != 0) %>%
   distinct() %>%
   group_by(village, landuse) %>%
-  summarise(species_richness = n())
+  summarise(species_richness = n()) %>%
+  mutate(landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order)),
+         village = factor(village, levels = village_order, labels = names(village_order)))
 
-diversity_village <- richness %>%
+richness_combined <- bind_rows(richness_village, richness_landuse, richness_landuse_village)
+
+diversity <- sites %>%
+  tibble() %>%
+  distinct(village, grid_number, unique_site, trap_uid, landuse) %>%
+  left_join(detections, by = c("village", "grid_number", "trap_uid")) %>%
+  group_by(village, grid_number, unique_site, landuse, clean_names) %>%
+  summarise(n = sum(n())) %>%
+  ungroup()
+
+diversity$n[is.na(diversity$clean_names)] <- 0
+
+diversity_village <- diversity %>%
   filter(!is.na(clean_names)) %>%
   group_by(village, clean_names) %>%
   summarise(n = sum(n)) %>%
   group_by(village) %>%
   summarise(N = sum(n),
             shannon_diversity = diversity(n, index = "shannon", MARGIN = 2)) %>%
-  arrange(-shannon_diversity)
+  mutate(village = factor(village, levels = village_order, labels = names(village_order))) %>%
+  arrange(village)
 
-diversity_landuse <- richness %>%
+diversity_landuse <- diversity %>%
   filter(!is.na(clean_names)) %>%
   group_by(landuse, clean_names) %>%
   summarise(n = sum(n)) %>%
   group_by(landuse) %>%
   summarise(N = sum(n),
             shannon_diversity = diversity(n, index = "shannon", MARGIN = 2)) %>%
-  arrange(-shannon_diversity)
+  mutate(landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order)),
+         village = "Combined") %>%
+  arrange(landuse)
 
-diversity_both <- richness %>%
+diversity_landuse_village <- diversity %>%
   filter(!is.na(clean_names)) %>%
   group_by(village, landuse, clean_names) %>%
   summarise(n = sum(n)) %>%
   group_by(village, landuse) %>%
   summarise(N = sum(n),
             shannon_diversity = diversity(n, index = "shannon", MARGIN = 2)) %>%
-  arrange(-shannon_diversity)
+  arrange(-shannon_diversity) %>%
+  mutate(landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order)),
+         village = factor(village, levels = village_order, labels = names(village_order))) %>%
+  arrange(village, landuse)
+  
+diversity_combined <- bind_rows(diversity_village, diversity_landuse, diversity_landuse_village)
+
+trap_denominator <- sites %>%
+  tibble() %>%
+  group_by(village, visit, unique_site, landuse) %>%
+  summarise(traps = n() * 4) %>%
+  group_by(village, landuse) %>%
+  summarise(TN = sum(traps)) %>%
+  group_by(landuse) %>%
+  mutate(TN_landuse = sum(TN)) %>%
+  group_by(village) %>%
+  mutate(TN_village = sum(TN)) %>%
+  ungroup()
+
+trap_village <- trap_denominator %>%
+  select(village, TN = TN_village) %>%
+  distinct() %>%
+  mutate(village = factor(village, levels = village_order, labels = names(village_order)))
+
+trap_landuse <- trap_denominator %>%
+  select(landuse, TN  = TN_landuse) %>%
+  distinct() %>%
+  mutate(landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order)),
+         village = "Combined")
+
+trap_landuse_village <- trap_denominator %>%
+  select(village, landuse, TN) %>%
+  distinct() %>%
+  mutate(landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order)),
+         village = factor(village, levels = village_order, labels = names(village_order)))
+
+trap_combined <- bind_rows(trap_village, trap_landuse, trap_landuse_village)
+
+table_1a <- richness_combined %>%
+  left_join(diversity_combined, by = c("village", "landuse")) %>%
+  left_join(trap_combined, by = c("village", "landuse")) %>%
+  select(village, landuse, N, TN, species_richness, shannon_diversity) %>%
+  mutate(village = factor(village, levels = c("Combined", str_to_sentence(village_order)), labels = c("All villages", names(village_order))),
+         landuse = case_when(is.na(landuse) ~ "Combined",
+                             TRUE ~ as.character(landuse)),
+         landuse = factor(landuse, levels = c("Village (inside)", "Village (outside)",
+                                              "Agriculture", "Fallow land", "Forest",
+                                              "Combined")),
+         shannon_diversity = round(shannon_diversity, 2),
+         TN = paste0(TN, " (", round(N/TN * 100, 1), "%)")) %>%
+  arrange(village, landuse)
+
+write_rds(table_1a, here("output", "table_1a.rds"))
 
 dissimilarity_df <- richness %>%
   filter(!is.na(clean_names)) %>%
