@@ -179,6 +179,18 @@ occ_ms_formula_1 <- ~ landuse + village + scale(distance_building) + scale(dista
 # Detection
 det_ms_formula <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
+# Model structure 2
+# Occurrence
+occ_ms_formula_2 <- ~ landuse
+# Detection
+det_ms_formula_2 <- ~ scale(precipitation)
+
+# Model structure 3
+# Occurrence
+occ_ms_formula_3 <- ~ landuse + village
+# Detection
+det_ms_formula_3 <- ~ scale(precipitation)
+
 # Initial values
 ms_inits <- list(alpha.comm = 0,
                  beta.comm = 0,
@@ -244,6 +256,167 @@ pred_df_int %>%
        x = "Species",
        colour = element_blank())
 
+# Intermediate models -----------------------------------------------------
+# Run model 2
+if(!file.exists(here("data", "model_output", "model_2.rds"))) {
+  out_ms_2 <- msPGOcc(occ.formula = occ_ms_formula_2, 
+                      det.formula = det_ms_formula_2, 
+                      data = data_msom, 
+                      inits = ms_inits, 
+                      n.samples = 30000, 
+                      priors = ms_priors, 
+                      n.omp.threads = 1, 
+                      verbose = TRUE, 
+                      n.report = 6000, 
+                      n.burn = 10000,
+                      n.thin = 50, 
+                      n.chains = 3)
+  
+  write_rds(out_ms_2, here("data", "model_output", "model_2.rds"))
+  
+} else {
+  
+  out_ms_2 <- read_rds(here("data", "model_output", "model_2.rds"))
+  
+}
+
+summary(out_ms_2, level = "both")
+
+waicOcc(out_ms_2)
+
+X_2 <- matrix(c(1, 0, 0, 0, 0,
+                1, 1, 0, 0, 0,
+                1, 0, 1, 0, 0,
+                1, 0, 0, 1, 0,
+                1, 0, 0, 0, 1),
+              nrow = 5, ncol =  5, byrow = TRUE)
+
+pred_2 <- predict(out_ms_2, X_2)
+
+interp_2 <- list()
+
+for(i in 1:nrow(X_2)) {
+  
+  interp_2[[i]] <- pred_2$psi.0.samples[, , i]
+  colnames(interp_2[[i]]) <- sp_codes
+  
+}
+
+names(interp_2) <- c("Agriculture", "Fallow", "Forest", "Village_inside", "Village_outside")
+
+interp_2 <- bind_rows(as.data.frame(interp_2[[1]]) %>%
+                        mutate(landuse = "Agriculture") %>%
+                        tibble(),
+                      as.data.frame(interp_2[[2]]) %>%
+                        mutate(landuse = "Fallow") %>%
+                        tibble(),
+                      as.data.frame(interp_2[[3]]) %>%
+                        mutate(landuse = "Forest") %>%
+                        tibble(),
+                      as.data.frame(interp_2[[4]]) %>%
+                        mutate(landuse = "Village_inside") %>%
+                        tibble(),
+                      as.data.frame(interp_2[[5]]) %>%
+                        mutate(landuse = "Village_outside") %>%
+                        tibble()) %>% 
+  pivot_longer(cols = c(-landuse), values_to = "occupancy", names_to = "species")
+
+ggplot(interp_2) +
+  geom_point(aes(x = occupancy, y = species, colour = landuse), position = position_jitter()) +
+  facet_wrap(~ landuse) +
+  theme_bw()
+
+# Run model 3
+if(!file.exists(here("data", "model_output", "model_3.rds"))) {
+  out_ms_3 <- msPGOcc(occ.formula = occ_ms_formula_3, 
+                      det.formula = det_ms_formula_3, 
+                      data = data_msom, 
+                      inits = ms_inits, 
+                      n.samples = 30000, 
+                      priors = ms_priors, 
+                      n.omp.threads = 1, 
+                      verbose = TRUE, 
+                      n.report = 6000, 
+                      n.burn = 10000,
+                      n.thin = 50, 
+                      n.chains = 3)
+  
+  write_rds(out_ms_3, here("data", "model_output", "model_3.rds"))
+  
+} else {
+  
+  out_ms_3 <- read_rds(here("data", "model_output", "model_3.rds"))
+  
+}
+
+summary(out_ms_3, level = "both")
+
+waicOcc(out_ms_3)
+
+X_3 <- matrix(c(1, 0, 0, 0, 0, 0, 0, 0,
+                1, 1, 0, 0, 0, 0, 0, 0,
+                1, 0, 1, 0, 0, 0, 0, 0,
+                1, 0, 0, 1, 0, 0, 0, 0,
+                1, 0, 0, 0, 1, 0, 0, 0,
+                1, 0, 0, 0, 0, 1, 0, 0,
+                1, 1, 0, 0, 0, 1, 0, 0,
+                1, 0, 1, 0, 0, 1, 0, 0,
+                1, 0, 0, 1, 0, 1, 0, 0,
+                1, 0, 0, 0, 1, 1, 0, 0,
+                1, 0, 0, 0, 0, 0, 1, 0,
+                1, 1, 0, 0, 0, 0, 1, 0,
+                1, 0, 1, 0, 0, 0, 1, 0,
+                1, 0, 0, 1, 0, 0, 1, 0,
+                1, 0, 0, 0, 1, 0, 1, 0,
+                1, 0, 0, 0, 0, 0, 0, 1,
+                1, 1, 0, 0, 0, 0, 0, 1,
+                1, 0, 1, 0, 0, 0, 0, 1,
+                1, 0, 0, 1, 0, 0, 0, 1,
+                1, 0, 0, 0, 1, 0, 0, 1),
+              nrow = 20, ncol =  8, byrow = TRUE)
+
+
+pred_3 <- predict(out_ms_3, X_3)
+
+interp_3 <- list()
+
+for(i in 1:nrow(X_3)) {
+  
+  interp_3[[i]] <- as.data.frame(pred_3$psi.0.samples[, , i])
+  colnames(interp_3[[i]]) <- sp_codes
+  
+}
+
+landuse_names <- c("Agriculture", "Fallow", "Forest", "Village_inside", "Village_outside")
+village_names <- c("Baiama", "Lalehun", "Lambayama", "Seilama")
+
+assign_names <- as.data.frame(X_3) %>%
+  mutate(village = case_when(V1 == 1 & V6 == 0 & V7 == 0 & V8 == 0 ~ "Baiama",
+                             V6 == 1 ~ "Lalehun",
+                             V7 == 1 ~ "Lambayama",
+                             V8 == 1 ~ "Seilama"),
+         landuse = case_when(V1 == 1 & V2 == 0 & V3 == 0 & V4 == 0  & V5 == 0 ~ "Agriculture",
+                             V2 == 1 ~ "Fallow",
+                             V3 == 1 ~ "Forest",
+                             V4 == 1 ~ "Village_inside",
+                             V5 == 1 ~ "Village_outside"))
+
+for(i in 1:length(interp_3)) {
+  
+  interp_3[[i]] <- interp_3[[i]] %>%
+    mutate(village = assign_names$village[i],
+           landuse = assign_names$landuse[i])
+  
+}
+
+interp_3 <- do.call(rbind, interp_3) %>% 
+  pivot_longer(cols = c(-landuse, -village), values_to = "occupancy", names_to = "species")
+
+ggplot(interp_3) +
+  geom_boxplot(aes(x = occupancy, y = species, colour = village)) +
+  facet_wrap(~ landuse) +
+  theme_bw()
+
 # Full model --------------------------------------------------------------
 # Run model
 
@@ -277,7 +450,6 @@ summary(ppc_ms_out_1)
 
 waicOcc(out_ms_1)
 
-
 # Produce prediction dataframe --------------------------------------------
 X_1 <- raw_occ %>%
   select(village, landuse, distance_building, distance_centre, elevation) %>%
@@ -302,17 +474,48 @@ pred_1 <- predict(out_ms_1, X_1)
 interp_1 <- as.data.frame(X_1)
 names(interp_1) <- colnames_X_1
 
-for(n in 1:N) {
+interp_1 <- interp_1 %>%
+  mutate(village = case_when(intercept == 1 & lalehun == 0 & lambayama == 0 & seilama == 0 ~ "Baiama",
+                             lalehun == 1 ~ "Lalehun",
+                             lambayama == 1 ~ "Lambayama",
+                             seilama == 1 ~ "Seilama"),
+         landuse = case_when(intercept == 1 & fallow == 0 & forest == 0 & village_inside == 0 & village_outside == 0 ~ "Agriculture",
+                             fallow == 1 ~ "Fallow",
+                             forest == 1 ~ "Forest",
+                             village_inside == 1 ~ "Village_inside",
+                             village_outside == 1 ~ "Village_outside"))
+
+pred_df <- list()
+
+for(i in 1:nrow(interp_1)) {
   
-  species_mean <- tibble(psi_mean = apply(pred_1$psi.0.samples[ , n, ], 2, mean),
-                         psi_sd = apply(pred_1$psi.0.samples[ , n, ], 2, sd))
+  pred_df[[i]] <- as.data.frame(pred_1$psi.0.samples[ , , i]) %>%
+    mutate(across(.cols = everything(), round, 5))
+  names(pred_df[[i]]) <- sp_codes
   
-  names(species_mean) = c(paste0(sp_codes[n], "_mean"),
-                          paste0(sp_codes[n], "_sd"))
-                               
-  
-  interp_1 <- bind_cols(interp_1, species_mean)
+  pred_df[[i]] <- pred_df[[i]] %>%
+    mutate(village = interp_1$village[i],
+           landuse = interp_1$landuse[i])
 }
+
+a <- do.call(rbind, pred_df) %>%
+  pivot_longer(cols = c(-village, -landuse), names_to = "species", values_to = "psi")
+
+mus_musculus <- a %>%
+  filter(species == "mus_musculus")
+
+mus_plot <- ggplot(mus_musculus) +
+  geom_boxplot(aes(x = psi, y = village, fill = village)) +
+  facet_wrap(~ landuse) +
+  theme_bw()
+
+mastomys_natalensis <- a %>%
+  filter(species == "mastomys_spp")
+
+mastomys_plot <- ggplot(mastomys_natalensis) +
+  geom_boxplot(aes(x = psi, y = village, fill = village)) +
+  facet_wrap(~ landuse) +
+  theme_bw()
 
 a <- interp_1 %>%
   mutate(baiama = case_when(lalehun == 0 & lambayama == 0 & seilama == 0 ~ 1,
