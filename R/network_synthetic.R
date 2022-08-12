@@ -293,7 +293,8 @@ produce_assemblages <- function(rodent_data = detections_sf, distance = 50) {
                                                         directed = TRUE)
   
   
-  return(list(summary_plots = list(same_visit = summarise_assemblages_same_visit_plot,
+  return(list(assemblages = combined_assemblages,
+              summary_plots = list(same_visit = summarise_assemblages_same_visit_plot,
                                    all_visits = summarise_assemblages_all_visits_plot),
               co_location_plots = list(same_visit = colocated_species_same_visit_plot,
                                        all_visits = colocated_species_all_visits_plot,
@@ -307,3 +308,118 @@ produce_assemblages <- function(rodent_data = detections_sf, distance = 50) {
 }
 
 assemblages <- produce_assemblages(detections_sf)
+
+
+# Co-location analyses ----------------------------------------------------
+
+seed(200)
+
+species_names <- sort(unique(detections$clean_names))
+species_prob <- detections %>%
+  select(clean_names) %>%
+  group_by(clean_names) %>%
+  mutate(n = n(),
+         prob = n/nrow(detections)) %>%
+  ungroup() %>%
+  distinct() %>%
+  arrange(clean_names) %>%
+  pull(prob)
+
+random_colocated <- tibble(rodent_id = unique(assemblages$assemblages$rodent_id),
+                           colocated_species = sample(species_names, length(unique(assemblages$assemblages$rodent_id)), replace = TRUE, prob = species_prob))
+
+null_colocated <- assemblages$assemblages %>%
+  tibble() %>%
+  filter(same_visit == TRUE) %>%
+  mutate(reference_species = case_when(reference_rodent == TRUE ~ clean_names,
+                                       TRUE ~ as.character(NA))) %>%
+  fill(reference_species, .direction = "down") %>%
+  select(assemblage, landuse, reference_species, rodent_id) %>%
+  left_join(random_colocated, by = "rodent_id")
+
+prop_null <- null_colocated %>%
+  rename(from_species = reference_species, to_species = colocated_species) %>%
+  group_by(from_species, to_species) %>%
+  summarise(n_individuals = n(),
+            prop_null = sum(n_individuals)) %>%
+  group_by(from_species) %>%
+  mutate(total = sum(prop_null)) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(prop_null = round(prop_null/total, 2))
+
+prop_null_df <- left_join(prop_null %>%
+              select(from_species_match = from_species,
+                     to_species_match = to_species,
+                     prop_null),
+              assemblages$co_location_plots$same_visit$data %>%
+                mutate(from_species_match = str_to_lower(str_split(str_replace_all(from_species, "\n", "_"), " ", simplify = TRUE)[, 1]),
+                       to_species_match = str_to_lower(str_replace_all(to_species, "\n", "_"))),
+              by = c("from_species_match", "to_species_match")) %>%
+  mutate(to_species = str_replace_all(str_to_sentence(to_species_match), "_", "\n"),
+         prop_null = replace_na(prop_null, replace = 0),
+         prop = replace_na(prop, replace = 0),
+         diff_prop = prop-prop_null) %>%
+  group_by(from_species_match) %>%
+  fill(from_species) %>%
+  fill(from_species, .direction = "down") %>%
+  filter(!is.na(from_species))
+
+prop_null_df$to_species <- factor(prop_null_df$to_species, levels = str_split(levels(prop_null_df$from_species), " ", simplify = TRUE)[, 1])
+
+colocated_species_plot <- ggplot(prop_null_df) +
+  geom_tile(aes(y = fct_rev(from_species), x = to_species, fill = diff_prop, width = 0.95, height = 0.95)) +
+  geom_label(aes(y = fct_rev(from_species), x = to_species, label = diff_prop)) +
+  scale_fill_gradient2(midpoint = 0, limits = c(-1, 1)) +
+  theme_bw() +
+  labs(y = "Reference species (Edges)",
+       x = "Co-located species",
+       fill = "Proportion",
+       title = "Same visit")
+
+save_plot(plot = colocated_species_plot,
+          filename = here("output", "colocated_species.pdf"),
+          base_width = 10,
+          base_height = 10)
+
+# Network graph plots -----------------------------------------------------
+
+ggraph(assemblages$graphs$same_visit_village_inside, layout = "kk") +
+  geom_edge_fan0(aes(colour = prop, width = prop)) +
+  geom_edge_loop(aes(colour = prop,  width = prop, span = 90), alpha = 0.4) +
+  geom_node_point() +
+  geom_node_label(aes(label = name)) +
+  scale_edge_color_viridis(option = "D", direction = -1, limits = c(0, 0.75), guide = "none") +
+  scale_edge_width(range = c(0, 3)) +
+  theme_graph(base_family = 'Helvetica', title_size = 16) +
+  labs(title = "Village (inside)")
+
+ggraph(assemblages$graphs$same_visit_village_outside, layout = "kk") +
+  geom_edge_fan0(aes(colour = prop, width = prop)) +
+  geom_edge_loop(aes(colour = prop,  width = prop, span = 90), alpha = 0.4) +
+  geom_node_point() +
+  geom_node_label(aes(label = name)) +
+  scale_edge_color_viridis(option = "D", direction = -1, limits = c(0, 0.75), guide = "none") +
+  scale_edge_width(range = c(0, 3)) +
+  theme_graph(base_family = 'Helvetica', title_size = 16) +
+  labs(title = "Village (outside)")
+
+ggraph(assemblages$graphs$species_graph_agriculture, layout = "kk") +
+  geom_edge_fan0(aes(colour = prop, width = prop)) +
+  geom_edge_loop(aes(colour = prop,  width = prop, span = 90), alpha = 0.4) +
+  geom_node_point() +
+  geom_node_label(aes(label = name)) +
+  scale_edge_color_viridis(option = "D", direction = -1, limits = c(0, 0.75), guide = "none") +
+  scale_edge_width(range = c(0, 3)) +
+  theme_graph(base_family = 'Helvetica', title_size = 16) +
+  labs(title = "Agriculture")
+
+ggraph(assemblages$graphs$species_graph_forest, layout = "kk") +
+  geom_edge_fan0(aes(colour = prop, width = prop)) +
+  geom_edge_loop(aes(colour = prop,  width = prop, span = 90), alpha = 0.4) +
+  geom_node_point() +
+  geom_node_label(aes(label = name)) +
+  scale_edge_color_viridis(option = "D", direction = -1, limits = c(0, 0.75), guide = "none") +
+  scale_edge_width(range = c(0, 3)) +
+  theme_graph(base_family = 'Helvetica', title_size = 16) +
+  labs(title = "Forest")

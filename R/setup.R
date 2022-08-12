@@ -7,6 +7,7 @@ pkgs =
     "flextable",
     "geodata",
     "ggraph",
+    "ggridges",
     "googledrive",
     "here",
     "igraph",

@@ -191,6 +191,12 @@ occ_ms_formula_3 <- ~ landuse + village
 # Detection
 det_ms_formula_3 <- ~ scale(precipitation)
 
+# Model structure 3b village is a random effect
+# Occurrence
+occ_ms_formula_3b <- ~ landuse + (1|village)
+# Detection
+det_ms_formula_3b <- ~ scale(precipitation)
+
 # Initial values
 ms_inits <- list(alpha.comm = 0,
                  beta.comm = 0,
@@ -417,6 +423,104 @@ ggplot(interp_3) +
   facet_wrap(~ landuse) +
   theme_bw()
 
+# Run model 3b
+data_msom_f <- data_msom
+data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "baiama"] <- 1
+data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "lalehun"] <- 2
+data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "lambayama"] <- 3
+data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "seilama"] <- 4
+data_msom_f$occ.covs$village <- as.numeric(data_msom_f$occ.covs$village)
+
+if(!file.exists(here("data", "model_output", "model_3b.rds"))) {
+  out_ms_3b <- msPGOcc(occ.formula = occ_ms_formula_3b, 
+                      det.formula = det_ms_formula_3b, 
+                      data = data_msom_f, 
+                      inits = ms_inits, 
+                      n.samples = 30000, 
+                      priors = ms_priors, 
+                      n.omp.threads = 1, 
+                      verbose = TRUE, 
+                      n.report = 6000, 
+                      n.burn = 10000,
+                      n.thin = 50, 
+                      n.chains = 3)
+  
+  write_rds(out_ms_3b, here("data", "model_output", "model_3b.rds"))
+  
+} else {
+  
+  out_ms_3b <- read_rds(here("data", "model_output", "model_3b.rds"))
+  
+}
+
+summary(out_ms_3b, level = "both")
+
+waicOcc(out_ms_3b)
+
+X_3b <- matrix(c(1, 0, 0, 0, 0, 1,
+                1, 1, 0, 0, 0, 1,
+                1, 0, 1, 0, 0, 1,
+                1, 0, 0, 1, 0, 1,
+                1, 0, 0, 0, 1, 1,
+                1, 0, 0, 0, 0, 2,
+                1, 1, 0, 0, 0, 2,
+                1, 0, 1, 0, 0, 2,
+                1, 0, 0, 1, 0, 2,
+                1, 0, 0, 0, 1, 2,
+                1, 0, 0, 0, 0, 3,
+                1, 1, 0, 0, 0, 3,
+                1, 0, 1, 0, 0, 3,
+                1, 0, 0, 1, 0, 3,
+                1, 0, 0, 0, 1, 3,
+                1, 0, 0, 0, 0, 4,
+                1, 1, 0, 0, 0, 4,
+                1, 0, 1, 0, 0, 4,
+                1, 0, 0, 1, 0, 4,
+                1, 0, 0, 0, 1, 4),
+              nrow = 20, ncol =  6, byrow = TRUE)
+
+
+# pred_3b <- predict(out_ms_3b, X_3b)
+# 
+# interp_3b <- list()
+# 
+# for(i in 1:nrow(X_3b)) {
+#   
+#   interp_3b[[i]] <- as.data.frame(pred_3b$psi.0.samples[, , i])
+#   colnames(interp_3b[[i]]) <- sp_codes
+#   
+# }
+# 
+# landuse_names <- c("Agriculture", "Fallow", "Forest", "Village_inside", "Village_outside")
+# village_names <- c("Baiama", "Lalehun", "Lambayama", "Seilama")
+# 
+# assign_names <- as.data.frame(X_3b) %>%
+#   mutate(village = case_when(V1 == 1 & V6 == 0 & V7 == 0 & V8 == 0 ~ "Baiama",
+#                              V6 == 1 ~ "Lalehun",
+#                              V7 == 1 ~ "Lambayama",
+#                              V8 == 1 ~ "Seilama"),
+#          landuse = case_when(V1 == 1 & V2 == 0 & V3 == 0 & V4 == 0  & V5 == 0 ~ "Agriculture",
+#                              V2 == 1 ~ "Fallow",
+#                              V3 == 1 ~ "Forest",
+#                              V4 == 1 ~ "Village_inside",
+#                              V5 == 1 ~ "Village_outside"))
+# 
+# for(i in 1:length(interp_3b)) {
+#   
+#   interp_3b[[i]] <- interp_3b[[i]] %>%
+#     mutate(village = assign_names$village[i],
+#            landuse = assign_names$landuse[i])
+#   
+# }
+# 
+# interp_3b <- do.call(rbind, interp_3b) %>% 
+#   pivot_longer(cols = c(-landuse, -village), values_to = "occupancy", names_to = "species")
+# 
+# ggplot(interp_3b) +
+#   geom_boxplot(aes(x = occupancy, y = species, colour = village)) +
+#   facet_wrap(~ landuse) +
+#   theme_bw()
+
 # Full model --------------------------------------------------------------
 # Run model
 
@@ -499,76 +603,15 @@ for(i in 1:nrow(interp_1)) {
 }
 
 a <- do.call(rbind, pred_df) %>%
-  pivot_longer(cols = c(-village, -landuse), names_to = "species", values_to = "psi")
+  pivot_longer(cols = c(-village, -landuse), names_to = "species", values_to = "psi") %>%
+  filter(!str_detect(species, "gerbill|hybomy|hylom|lemniscom|malacomy"))
 
-mus_musculus <- a %>%
-  filter(species == "mus_musculus")
-
-mus_plot <- ggplot(mus_musculus) +
-  geom_boxplot(aes(x = psi, y = village, fill = village)) +
-  facet_wrap(~ landuse) +
+combined_plot <- ggplot(a) +
+  geom_density_ridges(aes(x = psi, y = species, fill = village),
+                      rel_min_height = 0.01) +
+  facet_wrap(~ landuse, scales = "free") +
   theme_bw()
 
-mastomys_natalensis <- a %>%
-  filter(species == "mastomys_spp")
-
-mastomys_plot <- ggplot(mastomys_natalensis) +
-  geom_boxplot(aes(x = psi, y = village, fill = village)) +
-  facet_wrap(~ landuse) +
-  theme_bw()
-
-a <- interp_1 %>%
-  mutate(baiama = case_when(lalehun == 0 & lambayama == 0 & seilama == 0 ~ 1,
-                            TRUE ~ 0),
-         agriculture = case_when(fallow == 0 & forest == 0 & village_inside == 0 & village_outside == 0 ~ 1,
-                                 TRUE ~ 0)) %>%
-  select(-intercept, -distance_building, -distance_centre, -elevation) %>%
-  mutate(village = case_when(baiama == 1 ~ "baiama",
-                             lalehun == 1 ~ "lalehun",
-                             lambayama == 1 ~ "lambayama",
-                             seilama == 1 ~ "seilama")) %>%
-  select(-c("baiama", "lalehun", "lambayama", "seilama")) %>%
-  mutate(habitat = case_when(agriculture == 1 ~ "agriculture",
-                             fallow == 1 ~ "fallow",
-                             forest == 1 ~ "forest",
-                             village_inside == 1 ~ "village_inside",
-                             village_outside == 1 ~ "village_outside")) %>%
-  select(-c("agriculture", "fallow", "forest", "village_inside", "village_outside")) %>%
-  pivot_longer(cols = any_of(c(paste0(sp_codes, "_mean"), paste0(sp_codes, "_sd"))), values_to = "psi") %>%
-  mutate(metric = case_when(str_detect(name, "mean") ~ "mean",
-                            str_detect(name, "sd") ~ "sd"),
-         species = str_remove_all(name, "_mean|_sd")) %>%
-  select(village, habitat, species, metric, psi) %>%
-  group_by(village, habitat, species, metric) %>%
-  mutate(n = row_number()) %>%
-  pivot_wider(names_from = metric, values_from = psi)
-
-t <- a %>%
-  filter(village == "lambayama" & species == "mus_musculus") %>%
-  group_by(habitat) %>%
-  group_split()
-
-b <- a %>%
-  filter(metric == "mean") %>%
-  rename(mean = metric,
-         mean_psi = psi) %>%
-  select(-mean) %>%
-  bind_cols(a %>%
-              filter(metric == "sd") %>%
-              rename(sd = metric,
-                     sd_psi = psi) %>%
-              select(sd_psi)) %>%
-  rowwise() %>%
-  mutate(psi = rnorm(1, mean = mean_psi, sd = sd_psi))
-
-b$psi[b$psi <= 0] <- 0  
-
-prob_occurrence_hab <- ggplot() +
-  geom_histogram(data = b, aes(x = psi, y = habitat, colour = village), alpha = 0.4) +
-  facet_wrap(~ species) +
-  theme_bw() +
-  labs(y = element_blank(),
-       x = "Mean Psi",
-       colour = "Village",
-       title = "Probability of occurrence")
-
+save_plot(plot = combined_plot, filename = here("output", "model_1_plot.pdf"),
+          base_width = 16,
+          base_height = 10)
