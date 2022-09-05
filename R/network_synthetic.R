@@ -423,3 +423,81 @@ ggraph(assemblages$graphs$species_graph_forest, layout = "kk") +
   scale_edge_width(range = c(0, 3)) +
   theme_graph(base_family = 'Helvetica', title_size = 16) +
   labs(title = "Forest")
+
+
+# Contact networks --------------------------------------------------------
+
+network_same_visit <- assemblages$assemblages %>%
+  tibble() %>%
+  filter(same_visit == TRUE & landuse != "fallow") %>%
+  select(village, landuse, reference_id, rodent_id, clean_names, reference_rodent) %>%
+  mutate(reference_id = coalesce(reference_id, rodent_id)) %>%
+  group_by(reference_id) %>%
+  mutate(reference_name = case_when(reference_rodent == TRUE ~ clean_names,
+                                    reference_rodent == FALSE ~ clean_names[reference_rodent == TRUE])) %>%
+  group_by(landuse) %>%
+  group_split()
+
+names(network_same_visit) <- lapply(network_same_visit, function(x) {unique(x$landuse)})
+
+edgelist <- lapply(network_same_visit, function(x) {x %>%
+    select(from_id = reference_id, to_id = rodent_id, from_species = reference_name, to_species = clean_names, )})
+
+nodelist <- lapply(network_same_visit, function(x) {
+  
+  from_rodents <- x %>%
+    select(node_id = reference_id, species = reference_name, village)
+  
+  to_rodents <- x %>%
+    filter(!rodent_id %in% from_rodents$node_id) %>%
+    select(node_id = reference_id, species = clean_names, village)
+  
+  nodelist = bind_rows(from_rodents, to_rodents) %>%
+    distinct()
+  
+  return(nodelist)
+  })
+
+graph_landuse <- mapply(X = edgelist,
+                        Y = nodelist,
+                        function(X, Y) 
+                        { g_landuse <- graph_from_data_frame(d = X, directed = TRUE)
+                        
+                        v_species <- Y %>% 
+                          filter(node_id %in% V(g_landuse)$name)
+                                 
+                        g_landuse <- set_vertex_attr(g_landuse, "Species", value = str_to_sentence(str_replace_all(v_species$species, "_", " ")))
+                        g_landuse <- set_vertex_attr(g_landuse, "village", value = str_to_sentence(v_species$village))
+                        
+                        return(g_landuse)
+                        })
+
+plot_graphs <- list()
+
+species_palette_df <- assemblages$assemblages %>%
+  tibble() %>%
+  select(clean_names) %>%
+  mutate(species = str_to_sentence(str_replace_all(clean_names, "_", " "))) %>%
+  distinct(species) %>%
+  mutate(colour = colorRampPalette(brewer.pal(9, 
+                                              "Set1"))(13))
+species_palette <- c(species_palette_df$colour)
+names(species_palette) <- c(species_palette_df$species)
+
+for(i in 1:length(graph_landuse)) {
+  
+  plot_graphs[[i]] <- ggraph(graph_landuse[[i]], layout = "kk") +
+    geom_edge_link() +
+    geom_node_point(aes(colour = Species), size = 2) +
+    facet_nodes(~ village) +
+    theme_graph(base_family = 'Helvetica', title_size = 16) +
+    scale_colour_manual(values = species_palette) +
+    labs(title = str_to_sentence(str_replace_all(names(graph_landuse[i]), "_", " ")))
+  
+}
+
+save_plot(plot = plot_graphs[[1]], filename = here("output", "agriculture_graph.pdf"), base_height = 12, base_width = 16)
+save_plot(plot = plot_graphs[[2]], filename = here("output", "forest_graph.pdf"), base_height = 12, base_width = 16)
+save_plot(plot = plot_graphs[[3]], filename = here("output", "village_inside_graph.pdf"), base_height = 12, base_width = 16)
+save_plot(plot = plot_graphs[[4]], filename = here("output", "village_outside_graph.pdf"), base_height = 12, base_width = 16)
+

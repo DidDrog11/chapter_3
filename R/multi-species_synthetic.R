@@ -606,6 +606,77 @@ a <- do.call(rbind, pred_df) %>%
   pivot_longer(cols = c(-village, -landuse), names_to = "species", values_to = "psi") %>%
   filter(!str_detect(species, "gerbill|hybomy|hylom|lemniscom|malacomy"))
 
+mus_lambayama <- a %>%
+  filter(village == "Lambayama" & species == "mus_musculus") %>%
+  group_by(landuse)
+
+mean_mus_lambayama <- mus_lambayama %>%
+  summarise(mean = mean(psi),
+            median = median(psi))
+
+ci_mus_lambayama <- lapply(group_split(mus_lambayama), function(X) {
+  ecdf(X$psi)})
+
+inv_ecdf <- function(f){
+  x <- environment(f)$x
+  y <- environment(f)$y
+  approxfun(y, x)
+}
+
+mus_inside <- inv_ecdf(ci_mus_lambayama[[3]])
+mus_inside(0.05)
+mus_inside(0.95)
+
+mus_outside <- inv_ecdf(ci_mus_lambayama[[4]])
+mus_outside(0.05)
+mus_outside(0.95)
+
+mus_others <- a %>%
+  filter(village != "Lambayama" & species == "mus_musculus") %>%
+  group_by(landuse)
+
+mean_mus_others <- mus_others %>%
+  summarise(mean = mean(psi),
+            median = median(psi))
+
+ci_mus_others <- lapply(group_split(mus_others), function(X) {
+  ecdf(X$psi)})
+
+mus_inside <- inv_ecdf(ci_mus_others[[4]])
+mus_inside(0.05)
+mus_inside(0.95)
+
+mus_outside <- inv_ecdf(ci_mus_others[[5]])
+mus_outside(0.05)
+mus_outside(0.95)
+
+mastomys_all <- a %>%
+  filter(species == "mastomys_spp") %>%
+  group_by(landuse)
+
+mean_mastomys_all <- mastomys_all %>%
+  summarise(mean = mean(psi),
+            median = median(psi))
+
+ci_mastomys_all <- lapply(group_split(mastomys_all), function(X) {
+  ecdf(X$psi)})
+
+mastomys_inside <- inv_ecdf(ci_mastomys_all[[4]])
+mastomys_inside(0.05)
+mastomys_inside(0.95)
+
+mastomys_outside <- inv_ecdf(ci_mastomys_all[[5]])
+mastomys_outside(0.05)
+mastomys_outside(0.95)
+
+mastomys_ag <- inv_ecdf(ci_mastomys_all[[1]])
+mastomys_ag(0.05)
+mastomys_ag(0.95)
+
+mastomys_forest <- inv_ecdf(ci_mastomys_all[[3]])
+mastomys_forest(0.05)
+mastomys_forest(0.95)
+
 combined_plot <- ggplot(a) +
   geom_density_ridges(aes(x = psi, y = species, fill = village),
                       rel_min_height = 0.01) +
