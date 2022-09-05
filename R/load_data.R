@@ -201,6 +201,12 @@ synthetic_data <- list(synthetic_detections = synthetic_detections,
 
 write_rds(synthetic_data, here("data", "synthetic_data", "synthetic_data.rds"))
 
+# Chapter 4 will use the same data format
+chapter_4_data <- list(detections = detections,
+                       sites = bind_rows(sites_in_grid))
+
+write_rds(chapter_4_data, here("data", "data_for_export", "chapter_4_extract.rds"))
+
 # Detection covariates ----------------------------------------------------
 # Add date_set to the sites dataset to calculate moon and rainfall    #
 
