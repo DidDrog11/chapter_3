@@ -34,3 +34,9 @@ This chapter will describe the results of the rodent trapping study that was imp
 4.  Do detection rates vary importantly over time?
 5.  What is the potential impact of climate and land use change on *Lassa mammarenavirus* spillover risk?
 
+### Future changes
+
+  - [ ] Group agriculture and fallow, group village sites
+  - [ ] Trial of rarely detected species as grouped by other
+  - [ ] Run a spatial occupancy model
+  - [ ] Remove network section which will be moved to chapter 4
