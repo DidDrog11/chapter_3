@@ -357,6 +357,9 @@ if(!file.exists(here("data", "model_output", "model_3.rds"))) {
 
 summary(out_ms_3, level = "both")
 
+MCMCplot(out_ms_3$beta.samples)
+MCMCplot(out_ms_3$alpha.samples)
+
 waicOcc(out_ms_3)
 
 X_3 <- matrix(c(1, 0, 0, 0, 0, 0, 0, 0,
