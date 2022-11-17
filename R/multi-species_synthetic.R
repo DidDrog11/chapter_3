@@ -1,3 +1,5 @@
+source(here::here("R", "00_setup.R"))
+
 # First step is to make the data into the required format. The load_data.R  #
 # script has read in the data and performed the initial reshaping of the    #
 # data. The next steps are to do this for the multi-species model           #
@@ -27,7 +29,11 @@ site_codes <- site_match$site_code
 
 # associate sites with number in site_match
 y_long <- y_long %>%
-  left_join(site_match, by = "unique_site")
+  left_join(site_match, by = "unique_site") %>%
+  group_by(site_code) %>%
+  mutate(non_0_site_code = cur_group_id())
+
+non_0_site_code <- unique(y_long$site_code)
 
 # number of species
 N <- length(sp_codes)
@@ -65,8 +71,7 @@ if(!file.exists(here("data", "synthetic_data", "y.rds"))) {
   
   bai_lam_sites <- site_match$site_code[str_detect(site_match$unique_site, "baiama|lambayama")]
   # set the unsampled replicates in Baiama and Lambayama to NA
-  y[1:N, bai_lam_sites, 9:10] <- NA
-  
+  y[1:N, bai_lam_sites, 1:2] <- NA
   
   str(y)
   
@@ -82,7 +87,6 @@ if(!file.exists(here("data", "synthetic_data", "y.rds"))) {
 
 # summarise the total number of observations for each species
 apply(y, 1, sum, na.rm = TRUE)
-
 
 # Produce detection covariates --------------------------------------------
 # here we add covariates that can impact the probability of detecting a rodent if it is present
@@ -148,11 +152,11 @@ for(j in 1:J) {
   elevation_mat[[j]] <- raw_occ$elevation[[j]]
 }
 
-occ_covs <- list(landuse = landuse_mat,
-                 village = village_mat,
-                 distance_building = building_mat,
-                 distance_village = dist_village_mat,
-                 elevation = elevation_mat)
+occ_covs <- abind(landuse = landuse_mat,
+                  village = village_mat,
+                  distance_building = building_mat,
+                  distance_village = dist_village_mat,
+                  elevation = elevation_mat)
 
 write_rds(occ_covs, here("data", "synthetic_data", "occ_covs.rds"))
 
@@ -173,31 +177,43 @@ data_msom <- list(y = y,
 # Occurrence
 occ_ms_formula_int <- ~ 1
 
+det_ms_formula_int <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+
 # Model structure 1
 # Occurrence
 occ_ms_formula_1 <- ~ landuse + village + scale(distance_building) + scale(distance_village) + scale(elevation)
 # Detection
-det_ms_formula <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+det_ms_formula_1 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 2
 # Occurrence
-occ_ms_formula_2 <- ~ landuse
+occ_ms_formula_2 <- ~ landuse + village + landuse*village + scale(elevation)
 # Detection
-det_ms_formula_2 <- ~ scale(precipitation)
+det_ms_formula_2 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 3
 # Occurrence
-occ_ms_formula_3 <- ~ landuse + village
+occ_ms_formula_3 <- ~ landuse + landuse*village + scale(elevation)
 # Detection
-det_ms_formula_3 <- ~ scale(precipitation)
+det_ms_formula_3 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 3b village is a random effect
 # Occurrence
 occ_ms_formula_3b <- ~ landuse + (1|village)
 # Detection
-det_ms_formula_3b <- ~ scale(precipitation)
+det_ms_formula_3b <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
-# Initial values
+# Model structure 4 (spatial)
+# Occurrence
+occ_ms_formula_4 <- ~ landuse + landuse*village + scale(elevation)
+# Detection
+det_ms_formula_4 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+# Distances between sites
+dist_sites <- dist(data_msom$coords)
+# Exponential covariance model
+cov_model <- "exponential"
+
+# Initial values non spatial
 ms_inits <- list(alpha.comm = 0,
                  beta.comm = 0,
                  beta = 0,
@@ -206,11 +222,34 @@ ms_inits <- list(alpha.comm = 0,
                  tau.sq.alpha = 1,
                  z = apply(y, c(1, 2), max, na.rm = TRUE))
 
+# Initial values spatial
+ms_inits_spatial <- list(alpha.comm = 0,
+                         beta.comm = 0,
+                         beta = 0,
+                         alpha = 0,
+                         tau.sq.beta = 1,
+                         tau.sq.alpha = 1,
+                         z = apply(data_msom$y, c(1, 2), max, na.rm = TRUE), 
+                         sigma.sq = 2, 
+                         phi = 3 / mean(dist_sites), 
+                         w = matrix(0, N, dim(data_msom$y)[2]))
+
 # Prior values
 ms_priors <- list(beta.comm.normal = list(mean = 0, var = 2.72),
                   alpha.comm.normal = list(mean = 0, var = 2.72),
                   tau.sq.beta.ig = list(a = 0.1, b = 0.1),
                   alpha.sq.beta.ig = list(a = 0.1, b = 0.1))
+
+# Prior values spatial
+min_dist <- min(dist_sites)
+max_dist <- max(dist_sites)
+
+ms_priors_spatial <- list(beta.comm.normal = list(mean = 0, var = 2.72),
+                          alpha.comm.normal = list(mean = 0, var = 2.72), 
+                          tau.sq.beta.ig = list(a = 0.1, b = 0.1), 
+                          tau.sq.alpha.ig = list(a = 0.1, b = 0.1),
+                          sigma.sq.ig = list(a = 2, b = 2), 
+                          phi.unif = list(a = 3 / max_dist, b = 3 / min_dist))
 
 # Intercept only model ----------------------------------------------------
 # Run intercept only model
@@ -218,7 +257,7 @@ ms_priors <- list(beta.comm.normal = list(mean = 0, var = 2.72),
 if(!file.exists(here("data", "model_output", "intercept_only.rds"))) {
   
   out_ms_int <- msPGOcc(occ.formula = occ_ms_formula_int, 
-                        det.formula = det_ms_formula, 
+                        det.formula = det_ms_formula_int, 
                         data = data_msom, 
                         inits = ms_inits, 
                         n.samples = 30000, 
@@ -245,28 +284,28 @@ ppc_ms_out_int <- ppcOcc(out_ms_int, 'chi-squared', group = 1)
 
 summary(ppc_ms_out_int)
 
-X_0 <- array(1, dim = c(13, 1))
+X_0 <- array(1, dim = c(1, 1))
 pred_int <- predict(out_ms_int, X_0)
 
-pred_df_int <- data.frame(species = sp_codes,
-                          mean_psi = apply(pred_int$psi.0.samples, 2, mean),
-                          sd_psi = apply(pred_int$psi.0.samples, 2, sd))
+pred_df_int <- as_tibble(pred_int$psi.0.samples)
+colnames(pred_df_int) <- sp_codes
+pred_df_int <- pivot_longer(pred_df_int, cols = everything(), names_to = "species", values_to = "psi")
 
-pred_df_int %>%
-  ggplot() +
-  geom_point(aes(x = species, y = mean_psi, colour = species)) +
-  geom_errorbar(aes(x = species, ymin = mean_psi-sd_psi, ymax = mean_psi+sd_psi, colour = species)) +
+ggplot(data = pred_df_int, aes(x = psi, y = species, fill = species)) +
+  geom_density_ridges() +
   theme_bw() +
   labs(title = "Probability of occurrence - Intercept only",
-       y = "Mean Psi",
-       x = "Species",
+       y = "Species",
+       x = "Psi",
        colour = element_blank())
 
-# Intermediate models -----------------------------------------------------
-# Run model 2
-if(!file.exists(here("data", "model_output", "model_2.rds"))) {
-  out_ms_2 <- msPGOcc(occ.formula = occ_ms_formula_2, 
-                      det.formula = det_ms_formula_2, 
+
+# Model 1 --------------------------------------------------------------
+# Run model
+
+if(!file.exists(here("data", "model_output", "full_model.rds"))) {
+  out_ms_1 <- msPGOcc(occ.formula = occ_ms_formula_1, 
+                      det.formula = det_ms_formula_1, 
                       data = data_msom, 
                       inits = ms_inits, 
                       n.samples = 30000, 
@@ -275,6 +314,137 @@ if(!file.exists(here("data", "model_output", "model_2.rds"))) {
                       verbose = TRUE, 
                       n.report = 6000, 
                       n.burn = 10000,
+                      n.thin = 50, 
+                      n.chains = 3)
+  
+  write_rds(out_ms_1, here("data", "model_output", "full_model.rds"))
+  
+} else {
+  
+  out_ms_1 <- read_rds(here("data", "model_output", "full_model.rds"))
+  
+}
+
+summary(out_ms_1, level = "both")
+
+ppc_ms_out_1 <- ppcOcc(out_ms_1, 'chi-squared', group = 1)
+
+summary(ppc_ms_out_1)
+
+waicOcc(out_ms_1)
+
+# Produce prediction dataframe --------------------------------------------
+X_1 <- raw_occ %>%
+  select(village, landuse, distance_building, distance_centre, elevation) %>%
+  mutate(village_value = 1,
+         habitat_value = 1) %>%
+  pivot_wider(names_from = village, values_from = village_value, values_fill = 0) %>%
+  select(-baiama) %>%
+  pivot_wider(names_from = landuse, values_from = habitat_value, values_fill = 0) %>%
+  select(-agriculture) %>%
+  mutate(intercept = 1,
+         distance_building = (distance_building - mean(data_msom$occ.covs$distance_building)) / sd(data_msom$occ.covs$distance_building),
+         distance_centre = (distance_centre - mean(data_msom$occ.covs$distance_village)) / sd(data_msom$occ.covs$distance_village),
+         elevation = (elevation - mean(data_msom$occ.covs$elevation)) / sd(data_msom$occ.covs$elevation)) %>%
+  select(intercept, forest, village, lalehun, lambayama, seilama, distance_building, distance_centre, elevation)
+
+colnames_X_1 <- names(X_1)
+
+X_1 <- array(data = unlist(X_1), dim = c(nrow(X_1), ncol(X_1)))
+
+pred_1 <- predict(out_ms_1, X_1)
+
+interp_1 <- as.data.frame(X_1)
+names(interp_1) <- colnames_X_1
+
+interp_1 <- interp_1 %>%
+  mutate(Village = case_when(intercept == 1 & lalehun == 0 & lambayama == 0 & seilama == 0 ~ "Baiama",
+                             lalehun == 1 ~ "Lalehun",
+                             lambayama == 1 ~ "Lambayama",
+                             seilama == 1 ~ "Seilama"),
+         landuse = case_when(intercept == 1 & forest == 0 & village == 0 ~ "Agriculture",
+                             forest == 1 ~ "Forest",
+                             village == 1 ~ "Village"))
+
+pred_df <- list()
+
+for(i in 1:nrow(interp_1)) {
+  
+  pred_df[[i]] <- as.data.frame(pred_1$psi.0.samples[ , , i]) %>%
+    mutate(across(.cols = everything(), round, 5))
+  names(pred_df[[i]]) <- sp_codes
+  
+  pred_df[[i]] <- pred_df[[i]] %>%
+    mutate(Village = interp_1$Village[i],
+           Landuse = interp_1$landuse[i])
+}
+
+a <- do.call(rbind, pred_df) %>%
+  pivot_longer(cols = c(-Village, -Landuse), names_to = "species", values_to = "psi")
+
+summarised_data <- a %>%
+  group_by(species, Landuse, Village) %>%
+  summarise(mean = mean(psi),
+            lower = mean(psi) - sd(psi),
+            upper = mean(psi) + sd(psi),
+            xmin = mean(psi) - 3*sd(psi),
+            xmax = mean(psi) + 3*sd(psi))
+
+species_plot <- ggplot() +
+  geom_boxplot(data = summarised_data, aes(y = species, xlower = lower, xupper = upper, xmiddle = mean, xmin = xmin, xmax = xmax, fill = species), stat = "identity") +
+  facet_wrap(~ Landuse + Village) +
+  theme_bw()
+
+summarised_data_vil <- a %>%
+  group_by(species, Village) %>%
+  summarise(mean = mean(psi),
+            lower = mean(psi) - sd(psi),
+            upper = mean(psi) + sd(psi),
+            xmin = mean(psi) - 3*sd(psi),
+            xmax = mean(psi) + 3*sd(psi))
+
+species_plot_vil <- ggplot() +
+  geom_boxplot(data = summarised_data_vil, aes(y = species, xlower = lower, xupper = upper, xmiddle = mean, xmin = xmin, xmax = xmax, fill = species), stat = "identity") +
+  facet_wrap(~ Village) +
+  theme_bw()
+
+summarised_data_land <- a %>%
+  group_by(species, Landuse) %>%
+  summarise(mean = mean(psi),
+            lower = mean(psi) - sd(psi),
+            upper = mean(psi) + sd(psi),
+            xmin = mean(psi) - 3*sd(psi),
+            xmax = mean(psi) + 3*sd(psi))
+
+species_plot_land <- ggplot() +
+  geom_boxplot(data = summarised_data_land, aes(y = species, xlower = lower, xupper = upper, xmiddle = mean, xmin = xmin, xmax = xmax, fill = species), stat = "identity") +
+  facet_wrap(~ Landuse) +
+  theme_bw()
+
+save_plot(plot = species_plot, filename = here("output", "model_1_plot.png"),
+          nrow = 1,
+          base_width = 8,
+          base_height = 10)
+
+save_plot(plot = combined_plot, filename = here("output", "model_1_plot.png"),
+          nrow = 1,
+          base_width = 10,
+          base_height = 18)
+
+
+# Model 2 -----------------------------------------------------
+# Run model 2
+if(!file.exists(here("data", "model_output", "model_2.rds"))) {
+  out_ms_2 <- msPGOcc(occ.formula = occ_ms_formula_2, 
+                      det.formula = det_ms_formula_2, 
+                      data = data_msom, 
+                      inits = ms_inits, 
+                      n.samples = 5000, 
+                      priors = ms_priors, 
+                      n.omp.threads = 1, 
+                      verbose = TRUE, 
+                      n.report = 1000, 
+                      n.burn = 1500,
                       n.thin = 50, 
                       n.chains = 3)
   
@@ -289,6 +459,9 @@ if(!file.exists(here("data", "model_output", "model_2.rds"))) {
 summary(out_ms_2, level = "both")
 
 waicOcc(out_ms_2)
+
+
+# Produce prediction dataframe --------------------------------------------
 
 X_2 <- matrix(c(1, 0, 0, 0, 0,
                 1, 1, 0, 0, 0,
@@ -332,18 +505,21 @@ ggplot(interp_2) +
   facet_wrap(~ landuse) +
   theme_bw()
 
-# Run model 3
+# Model 3 -----------------------------------------------------------------
+
 if(!file.exists(here("data", "model_output", "model_3.rds"))) {
+
+  
   out_ms_3 <- msPGOcc(occ.formula = occ_ms_formula_3, 
                       det.formula = det_ms_formula_3, 
                       data = data_msom, 
                       inits = ms_inits, 
-                      n.samples = 30000, 
+                      n.samples = 5000, 
                       priors = ms_priors, 
                       n.omp.threads = 1, 
                       verbose = TRUE, 
-                      n.report = 6000, 
-                      n.burn = 10000,
+                      n.report = 1000, 
+                      n.burn = 1500,
                       n.thin = 50, 
                       n.chains = 3)
   
@@ -357,10 +533,14 @@ if(!file.exists(here("data", "model_output", "model_3.rds"))) {
 
 summary(out_ms_3, level = "both")
 
-MCMCplot(out_ms_3$beta.samples)
-MCMCplot(out_ms_3$alpha.samples)
-
 waicOcc(out_ms_3)
+
+ppc_ms_out_3 <- ppcOcc(out_ms_3, 'chi-squared', group = 1)
+
+summary(ppc_ms_out_3)
+
+
+# Produce prediction dataframe --------------------------------------------
 
 X_3 <- matrix(c(1, 0, 0, 0, 0, 0, 0, 0,
                 1, 1, 0, 0, 0, 0, 0, 0,
@@ -426,6 +606,9 @@ ggplot(interp_3) +
   facet_wrap(~ landuse) +
   theme_bw()
 
+
+# Model 3b ----------------------------------------------------------------
+
 # Run model 3b
 data_msom_f <- data_msom
 data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "baiama"] <- 1
@@ -459,6 +642,9 @@ if(!file.exists(here("data", "model_output", "model_3b.rds"))) {
 summary(out_ms_3b, level = "both")
 
 waicOcc(out_ms_3b)
+
+
+# Produce prediction dataframe --------------------------------------------
 
 X_3b <- matrix(c(1, 0, 0, 0, 0, 1,
                 1, 1, 0, 0, 0, 1,
@@ -524,168 +710,39 @@ X_3b <- matrix(c(1, 0, 0, 0, 0, 1,
 #   facet_wrap(~ landuse) +
 #   theme_bw()
 
-# Full model --------------------------------------------------------------
-# Run model
 
-if(!file.exists(here("data", "model_output", "full_model.rds"))) {
-  out_ms_1 <- msPGOcc(occ.formula = occ_ms_formula_1, 
-                      det.formula = det_ms_formula, 
-                      data = data_msom, 
-                      inits = ms_inits, 
-                      n.samples = 30000, 
-                      priors = ms_priors, 
-                      n.omp.threads = 1, 
-                      verbose = TRUE, 
-                      n.report = 6000, 
-                      n.burn = 10000,
-                      n.thin = 50, 
-                      n.chains = 3)
+# Model 4 (Spatial) -------------------------------------------------------
+
+if(!file.exists(here("data", "model_output", "model_4.rds"))) {
+
+  out_ms_4 <- spMsPGOcc(occ.formula = occ_ms_formula_4, 
+                        det.formula = det_ms_formula_4, 
+                        data = data_msom, 
+                        inits = ms_inits_spatial, 
+                        n.batch = 400,
+                        batch.length = 25,
+                        accept.rate = 0.43,
+                        priors = ms_priors_spatial,
+                        cov.model = cov_model, 
+                        n.omp.threads = 1, 
+                        verbose = TRUE, 
+                        NNGP = TRUE,
+                        n.report = 100, 
+                        n.burn = 2000,
+                        n.thin = 20, 
+                        n.chains = 3,
+                        tuning = list(phi = 0.5))
   
-  write_rds(out_ms_1, here("data", "model_output", "full_model.rds"))
+  write_rds(out_ms_4, here("data", "model_output", "model_4.rds"))
   
 } else {
   
-  out_ms_1 <- read_rds(here("data", "model_output", "full_model.rds"))
+  out_ms_4 <- read_rds(here("data", "model_output", "model_4.rds"))
   
 }
 
-summary(out_ms_1, level = "both")
+summary(out_ms_4, level = "both")
 
-ppc_ms_out_1 <- ppcOcc(out_ms_1, 'chi-squared', group = 1)
+waicOcc(out_ms_4)
 
-summary(ppc_ms_out_1)
-
-waicOcc(out_ms_1)
-
-# Produce prediction dataframe --------------------------------------------
-X_1 <- raw_occ %>%
-  select(village, landuse, distance_building, distance_centre, elevation) %>%
-  mutate(village_value = 1,
-         habitat_value = 1) %>%
-  pivot_wider(names_from = village, values_from = village_value, values_fill = 0) %>%
-  select(-baiama) %>%
-  pivot_wider(names_from = landuse, values_from = habitat_value, values_fill = 0) %>%
-  select(-agriculture) %>%
-  mutate(intercept = 1,
-         distance_building = (distance_building - mean(data_msom$occ.covs$distance_building)) / sd(data_msom$occ.covs$distance_building),
-         distance_centre = (distance_centre - mean(data_msom$occ.covs$distance_village)) / sd(data_msom$occ.covs$distance_village),
-         elevation = (elevation - mean(data_msom$occ.covs$elevation)) / sd(data_msom$occ.covs$elevation)) %>%
-  select(intercept, fallow, forest, village_inside, village_outside, lalehun, lambayama, seilama, distance_building, distance_centre, elevation)
-
-colnames_X_1 <- names(X_1)
-
-X_1 <- array(data = unlist(X_1), dim = c(nrow(X_1), ncol(X_1)))
-
-pred_1 <- predict(out_ms_1, X_1)
-
-interp_1 <- as.data.frame(X_1)
-names(interp_1) <- colnames_X_1
-
-interp_1 <- interp_1 %>%
-  mutate(village = case_when(intercept == 1 & lalehun == 0 & lambayama == 0 & seilama == 0 ~ "Baiama",
-                             lalehun == 1 ~ "Lalehun",
-                             lambayama == 1 ~ "Lambayama",
-                             seilama == 1 ~ "Seilama"),
-         landuse = case_when(intercept == 1 & fallow == 0 & forest == 0 & village_inside == 0 & village_outside == 0 ~ "Agriculture",
-                             fallow == 1 ~ "Fallow",
-                             forest == 1 ~ "Forest",
-                             village_inside == 1 ~ "Village_inside",
-                             village_outside == 1 ~ "Village_outside"))
-
-pred_df <- list()
-
-for(i in 1:nrow(interp_1)) {
-  
-  pred_df[[i]] <- as.data.frame(pred_1$psi.0.samples[ , , i]) %>%
-    mutate(across(.cols = everything(), round, 5))
-  names(pred_df[[i]]) <- sp_codes
-  
-  pred_df[[i]] <- pred_df[[i]] %>%
-    mutate(village = interp_1$village[i],
-           landuse = interp_1$landuse[i])
-}
-
-a <- do.call(rbind, pred_df) %>%
-  pivot_longer(cols = c(-village, -landuse), names_to = "species", values_to = "psi") %>%
-  filter(!str_detect(species, "gerbill|hybomy|hylom|lemniscom|malacomy"))
-
-mus_lambayama <- a %>%
-  filter(village == "Lambayama" & species == "mus_musculus") %>%
-  group_by(landuse)
-
-mean_mus_lambayama <- mus_lambayama %>%
-  summarise(mean = mean(psi),
-            median = median(psi))
-
-ci_mus_lambayama <- lapply(group_split(mus_lambayama), function(X) {
-  ecdf(X$psi)})
-
-inv_ecdf <- function(f){
-  x <- environment(f)$x
-  y <- environment(f)$y
-  approxfun(y, x)
-}
-
-mus_inside <- inv_ecdf(ci_mus_lambayama[[3]])
-mus_inside(0.05)
-mus_inside(0.95)
-
-mus_outside <- inv_ecdf(ci_mus_lambayama[[4]])
-mus_outside(0.05)
-mus_outside(0.95)
-
-mus_others <- a %>%
-  filter(village != "Lambayama" & species == "mus_musculus") %>%
-  group_by(landuse)
-
-mean_mus_others <- mus_others %>%
-  summarise(mean = mean(psi),
-            median = median(psi))
-
-ci_mus_others <- lapply(group_split(mus_others), function(X) {
-  ecdf(X$psi)})
-
-mus_inside <- inv_ecdf(ci_mus_others[[4]])
-mus_inside(0.05)
-mus_inside(0.95)
-
-mus_outside <- inv_ecdf(ci_mus_others[[5]])
-mus_outside(0.05)
-mus_outside(0.95)
-
-mastomys_all <- a %>%
-  filter(species == "mastomys_spp") %>%
-  group_by(landuse)
-
-mean_mastomys_all <- mastomys_all %>%
-  summarise(mean = mean(psi),
-            median = median(psi))
-
-ci_mastomys_all <- lapply(group_split(mastomys_all), function(X) {
-  ecdf(X$psi)})
-
-mastomys_inside <- inv_ecdf(ci_mastomys_all[[4]])
-mastomys_inside(0.05)
-mastomys_inside(0.95)
-
-mastomys_outside <- inv_ecdf(ci_mastomys_all[[5]])
-mastomys_outside(0.05)
-mastomys_outside(0.95)
-
-mastomys_ag <- inv_ecdf(ci_mastomys_all[[1]])
-mastomys_ag(0.05)
-mastomys_ag(0.95)
-
-mastomys_forest <- inv_ecdf(ci_mastomys_all[[3]])
-mastomys_forest(0.05)
-mastomys_forest(0.95)
-
-combined_plot <- ggplot(a) +
-  geom_density_ridges(aes(x = psi, y = species, fill = village),
-                      rel_min_height = 0.01) +
-  facet_wrap(~ landuse, scales = "free") +
-  theme_bw()
-
-save_plot(plot = combined_plot, filename = here("output", "model_1_plot.pdf"),
-          base_width = 16,
-          base_height = 10)
+gof_model_4 <- ppcOcc(out_ms_4)

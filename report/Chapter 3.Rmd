@@ -60,7 +60,7 @@ Rodent trapping was conducted at up to 6 trapping sites within each of 4 village
 
 ```{r trap-locations, layout = "l-page", fig.cap = "Figure 1. Locations of trapping grids within each village site. The trapping grids are shown in each land-use type with the colour of each 49m^2^ grid indicating the number of trap nights at that location."}
 
-knitr::include_graphics(here("output", "grid_locations.pdf"))
+#knitr::include_graphics(here("output", "grid_locations.pdf"))
 
 ```
 
@@ -68,7 +68,7 @@ Trap sites were geo-located to aid repeated trapping activities, changes to land
 
 ### Rodent sampling
 
-Trapped rodents were handled by trained fieldworkers, sedated with halothane and euthanised prior to obtaining morphological measurements and samples of blood and tissue (**reference to RVC and local ethics approval**) following published guidance [@fichet-calvet_chapter_2014]. The rodents sex was determined based on external and internal genitalia. Age estimation was performed through description of the rodents reproductive status (identification of perforate or imperforate vagina, scarring from prior embryo development, current pregnancy status or descent of testes and seminal vesicle development) and weighing of dried eye lenses. Carcasses were destroyed through incineration to eliminate risk of pathogen transmission.
+Trapped rodents were handled by trained fieldworkers, sedated with halothane and euthanised prior to obtaining morphological measurements and samples of blood and tissue (**reference to RVC and local ethics approval**) following published guidance [@fichet-calvet_chapter_2014]. The rodents sex was determined based on external and internal genitalia. Age estimation was performed through description of the rodents reproductive status (identification of perforate or imperforate vagina, scarring from prior embryo development, current pregnancy status or descent of testes and seminal vesicle development) and weighing of dried eye lenses [ref]. Carcasses were destroyed through incineration to eliminate risk of pathogen transmission.
 
 Molecular identification of individuals to species level was performed on whole blood and dried blood spots that were stored at -20°C until processing. Genomic DNA was extracted using QIAGEN DNAeasy kits as per the manufacturers instructions [ref]. DNA extracts were amplified using platinum *Taq* polymerase (Invitrogen) and cytochrome B primers. DNA amplification was assessed through gel electrophoreisis with successful amplification products undergoing Sanger sequencing. Classification of obtained sequences was through BLAST compared to NCBI records for rodent cytochrome B.
 
@@ -76,9 +76,9 @@ Molecular identification of individuals to species level was performed on whole 
 
 ### Rodent occurrence and species assemblage structure
 
-We obtained 40,152 trap-nights over 10 trapping visits between 2020-11-30 and 2023-04-28. Trapping effort was assessed using species accumulation curves (Supplementary figure 1.), suggesting adequate effort to detect rodent species within each village site. We constructed detection/non-detection histories for all identified rodent species, assigning "1" when the species was detected and "0" otherwise, aggregated to standardised grid squares. We augmented data by creating all-zero detection histories of rodent species that have been previously described as occurring in the region and were never recorded in our study.
+A total of 40,152 trap-nights over 10 trapping visits was obtained between 2020-11-30 and 2023-04-28. Trapping effort was assessed using species accumulation curves (Supplementary figure 1.), suggesting adequate effort to detect rodent species within each village site. We constructed detection/non-detection histories for all identified rodent species, assigning "1" when the species was detected and "0" otherwise, aggregated to standardised grid squares. We augmented data by creating all-zero detection histories of rodent species that have been previously described as occurring in the region and were never recorded in our study.
 
-We describe species assemblages at multiple geographic scales. First, all species identified across all village sites and land-use types. Second, all species identified within a village. Third, all species identified within a single land-use type across multiple trapping sites and villages.
+We describe species assemblages at multiple geographic scales. First, all species identified across all village sites and land-use types. Second, all species identified within a village. Third, all species identified within a single land-use type across multiple trapping sites and villages. We report species richness and Shannon diversity ($H = -\sum(p_i) * \ln(p_i)$, where $p_i$ is the proportion of the entire community made up of species $i$) at these scales.
 
 ### Rodent species networks
 
@@ -112,7 +112,7 @@ $$
 \mathrm{logit}\left({p}_{i,j,k}\right)={\boldsymbol{v}}_{i,j,k}^{\top}\boldsymbol{\alpha} \tag{5}
 $$
 
-Similarly to Equation 3. these coefficients are described as random effects arising from a common community level distribution, where $\boldsymbol{\mu}_{\alpha}$ represents the community level mean effect for each detection covariate effect and $\boldsymbol{T}_{\alpha}$ is a diagonal matrix representing the variability of these among species in the community (Equation 6.).
+Similarlym to Equation 3. these coefficients are described as random effects arising from a common community level distribution, where $\boldsymbol{\mu}_{\alpha}$ represents the community level mean effect for each detection covariate effect and $\boldsymbol{T}_{\alpha}$ is a diagonal matrix representing the variability of these among species in the community (Equation 6.).
 
 $$
 \boldsymbol{\alpha}_i \sim \text{Normal}(\boldsymbol{\mu}_{\alpha}, \boldsymbol{T}_{\alpha}) \tag{6}
@@ -134,7 +134,7 @@ Using this model, we calculate the effect of land-use as the difference in occup
 
 ### Co-occurrence of species (**This approach may change**)
 
-To investigate the presence of competitive exclusion by rodent species in this setting we adopted a Binomial joint likelihood model fit using Integrated Nested Laplace Approximation (INLA) in the R statistical computing language [@rue_approximate_2009; @martins_bayesian_2013].Here we set up co-occurrence models to estimate the probability of detection of two species $Y_{a}$ and $Y_{b}$ (Equation 8). Here, ${\gamma}$ is the species specific intercept for species ${a}$ and ${b}$ respectively. ${A.co.B}$ and ${B.co.A}$ represent the co-occurrence of species ${a}$ with species ${b}$ and species ${b}$ with species ${a}$ respectively.
+To investigate the presence of competitive exclusion by rodent species in this setting we adopted a Binomial joint likelihood model fit using Integrated Nested Laplace Approximation (INLA) in the R statistical computing language [@rue_approximate_2009; @martins_bayesian_2013]. Co-occurrence models were set up to estimate the probability of detection of two species $Y_{a}$ and $Y_{b}$ (Equation 8). Here, ${\gamma}$ is the species specific intercept for species ${a}$ and ${b}$ respectively. ${A.co.B}$ and ${B.co.A}$ represent the co-occurrence of species ${a}$ with species ${b}$ and species ${b}$ with species ${a}$ respectively.
 
 \begin{align}
 {Y}_{a} \sim {\gamma}_{a} + \mathrm{A.co.B} \tag{9} \\ 
@@ -147,11 +147,11 @@ Minimally informative priors were set for the intercept and species co-occurrenc
 
 ## Rodent occurrence and species assemblage structure
 
-During the study period 749 small mammals were obtained from 40,152 trap-nights across the four study villages (1.9% trap-success (TS)). The greatest number of small mammals were detected in agricultural settings, these communities also had the greatest species richness and Shannon diversity. However, the greatest TS was obtained from traps set within households, although in these settings species richness and diversity was lower (Table 1a). Seilama and Lalehun had the highest overall TS, species richness and Shannon diversity although the land-use types with the highest values of these metrics differed between the villages. Lambayama the most urbanised village had the lowest species richness and Shannon diversity with the majority of rodents trapped within households.
+During the study period 749 small mammals were obtained from 40,152 trap-nights across the four study villages (1.9% trap-success (TS)). The greatest number of small mammals were detected in agricultural settings. These communities also had the greatest species richness and Shannon diversity. However, the greatest TS was obtained from traps set within households, although in these settings species richness and diversity was lower (Table 1a). The communities of Seilama and Lalehun had the highest overall TS, species richness and Shannon diversity although the land use types with the highest values of these metrics differed between the villages. Lambayama, the most village located within the expanding boundaries of Kenema city, had the lowest species richness and Shannon diversity with the majority of rodents trapped within households.
 
 \captionsetup[table]{labelformat=empty}
 
-```{r table-1a, layout = "l-page", tab.cap = "Table 1a. The number of individual small mammals (N), the number of trap nights (TN), trap-success (TS %), species richness and Shannon diversity are presented for each village and landuse type."}
+```{r table-1a, layout = "l-page", tab.cap = "Table 1a. The number of individual small mammals (N), the number of trap nights (TN), trap-success (TS %), species richness and Shannon diversity by village and landuse type."}
 
 table_1a <- readRDS(here("output", "table_1a.rds"))
 table_1a %>%
@@ -168,7 +168,7 @@ table_1a %>%
 
 ```
 
-The most commonly detected rodent species was *M. natalensis* (N = 144, 19.2%), followed by *R. rattus* (N = 90, 12%), *M. musculus* (N = 86, 11.5%) and *Lophuromys rostratus* (N = 74, 9.9%) (Table 1b.). *M. natalensis* and *R. rattus* were detected in all villages with *M. natalensis* never detected in fallow or forest settings. Conversely, *Hybomys planifrons* and *Gerbilliscus kempii* were only detected in a single village and in forest and fallow settings respectively. The invasive rodent *M. musculus* was only detected in Lambayama and Seilama village settings. We found little variation in species richness by season, however, prevalence of species (measured by trap-success) fell for most species, except *M. natalensis* which was more commonly trapped (greater trap-success) during the wet season in indoor settings across the three village sites in which it was prevalent (Supplementary Table 1. **Not done yet**).
+The most commonly detected rodent species was *M. natalensis* (N = 144, 19.2%), followed by *R. rattus* (N = 90, 12%), *M. musculus* (N = 86, 11.5%) and *Lophuromys rostratus* (N = 74, 9.9%) (Table 1b.). *M. natalensis* and *R. rattus* were detected in all villages *M. natalensis* was not detected in fallow or forest settings. Conversely, *Hybomys planifrons* and *Gerbilliscus kempii* were only detected in a single village, with *H. planifrons* detected in a forest setting and *G. kempii* in fallow land. The invasive rodent *M. musculus* was only detected in Lambayama and Seilama village settings. We found little variation in species richness by season. The, prevalence of a species (measured as the number of positive detections for a constant trapping effort) was reduced for most species during the rainy season, except for *M. natalensis* detected in village settings during the rainy season compared to the dry season (Supplementary Table 1. **Not done yet**).
 
 ```{r table-1b, layout = "l-page", tab.cap = "Table 1b. The location of detection of individual small mammals by species. Values in paranthesis are the TS % for that species in the village and landuse for the associated traps."}
 
@@ -184,26 +184,13 @@ table_1b %>%
 ```
 
 
-## Rodent species networks
-
-The densest rodent contact networks were produced from areas dominated by human activity (Village (indoors) and Village (outside)), consistent with low observed species richness but high numbers of trapped rodents (Supplementary figures 3-6). The most complex networks were found in agricultural settings where rodents typically found in human dominated landscapes and less disturbed landscapes were both found. 
-Rodent species networks varied by village and habitat type (**Need to think a bit more on what metrics to use to present this**). 
-
-Contact between different species is potentially important for the maintenance of viral transmission and risk of pathogen spillover into human populations. Figure 3 shows the proportion of contacts between different species compared to the null model. For the majority of species, contacts between individuals occurred at greater than expected proportions, this was not the case for rarer species. Positive values represent greater than expected contacts between rodent species, for example *M. natalensis* and *R. rattus* would come into contact at greater rates than would otherwise be expected, suggesting that competitive exclusion is not occurring between these species. In contrast *M. musculus* has fewer contacts than would be expected, of particular importance are the reduced contacts with *M. natalensis* and *R. rattus* that would be expected to be found in the same environment. This pattern is suggestive that *M. musculus* displaces these species in areas where it is present.
-
-```{r co-occurrence, layout = "l-page", fig.cap = "Figure 3. The proportion of co-located rodents for each species detected in the current study. The reference species for the contact is shown on the Y-axis with the number of edges representing all contacts for that species with individuals of species shown on the X-axis. Positive values represent the difference between the observed proportion of contacts minus the proportion expected from the null model (i.e. proportional excess contacts)."}
-
-knitr::include_graphics(here("output", "colocated_species.pdf"))
-
-```
-
 ## Estimating the effect of land use on species occurrence and richness
 
 We modelled the association of land-use type on the occurrence of small mammal species in a multi-species framework, incorporating incomplete detection adjusting for co-variates that could influence species occurrence. We found that several species occurred solely within human dominated landscapes (Villages, either within or without buildings, or Agriculture) or within minimally disturbed landuse types (Forested areas) (Figure 4.). No species showed high probability of occurrence across all land-use types. This suggests that the heterogenenous land-use may limit dispersal of individuals from one region to another.
 
-```{r response-landuse, layout = "l-page", fig.cap = "Figure 4. The sampled probability of occurrence (psi), within different land-use types, for the seven most commonly trapped small mammals. Colours signify the village site to highlight the observed heterogeneity between village sites in the occurrence of these species."}
+```{r response-landuse, layout = "l-page", fig.cap = "Figure 4. The sampled probability of occurrence (psi), within different land use types, for the seven most commonly trapped small mammals. Colours signify the village site to highlight the observed heterogeneity between village sites in the occurrence of these species."}
 
-knitr::include_graphics(here("output", "model_1_plot.pdf"))
+knitr::include_graphics(here("output", "model_1_plot.png"))
 
 ```
 
@@ -231,22 +218,22 @@ We present data on rodent species assembalges within a Lassa fever endemic regio
 
 ```{r species-accumulation, layout = "l-page", fig.cap = "Supplementary figure 1. Species accumulation curves for each village site"}
 
-knitr::include_graphics(here("output", "species_accumulation.pdf"))
+#knitr::include_graphics(here("output", "species_accumulation.pdf"))
 
 ```
 
 ```{r model-DAG, layout = "l-page", fig.cap = "Supplementary figure 2. Directed Acyclic Graph used for occupancy and detection model specification"}
 
-knitr::include_graphics(here("output", "model_dag.pdf"))
+#knitr::include_graphics(here("output", "model_dag.pdf"))
 
 ```
 
 ```{r network-graphs, layout = "l-page", fig.cap = "Supplementary figure 3-6. Network graphs for contact between individual rodents in different landuse types seperated by village."}
 
-knitr::include_graphics(here("output", "village_inside_graph.pdf"))
-knitr::include_graphics(here("output", "village_outside_graph.pdf"))
-knitr::include_graphics(here("output", "agriculture_graph.pdf"))
-knitr::include_graphics(here("output", "forest_graph.pdf"))
+# knitr::include_graphics(here("output", "village_inside_graph.pdf"))
+# knitr::include_graphics(here("output", "village_outside_graph.pdf"))
+# knitr::include_graphics(here("output", "agriculture_graph.pdf"))
+# knitr::include_graphics(here("output", "forest_graph.pdf"))
 
 ```
 

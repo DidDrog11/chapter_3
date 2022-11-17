@@ -1,8 +1,14 @@
+source(here::here("R", "00_setup.R"))
+
+combined_data <- read_rds(here("data", "input", "combined_data.rds"))
+
 combined_data$trap_data <- combined_data$trap_data %>%
   filter(village != "bambawo")
 
 combined_data$rodent_data <- combined_data$rodent_data %>%
   filter(!str_detect(trap_uid, "bambawo"))
+
+sites_grids <- read_rds(here("data", "synthetic_data", "sites_grids.rds"))
 
 grids <- list()
 
@@ -20,19 +26,16 @@ grids <- grids %>%
   st_as_sf() %>%
   rename(geometry = 1)
 
+synthetic_data <- read_rds(here("data", "synthetic_data", "synthetic_data.rds"))
+
 sites <- synthetic_data$synthetic_sites %>%
-  mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
-                             habitat_group == "village" ~ site_habitat,
-                             habitat_group == "proximal_agriculture" ~ "agriculture",
-                             habitat_group == "distal_agriculture" ~ "agriculture",
-                             TRUE ~ habitat_group)) %>%
   st_as_sf(coords = c("trap_easting", "trap_northing"), crs = SL_UTM)
 
 detections <- synthetic_data$synthetic_detections
 
-occurrence_covariates
+occurrence_covariates <- read_rds(here("data", "synthetic_data", "occurrence_covariates.rds"))
 
-detection_covariates
+detection_covariates <- read_rds(here("data", "synthetic_data", "detection_covariates.rds"))
 
 
 # Description trapping effort -------------------------------------------
@@ -54,11 +57,6 @@ median_number_trap_visit <- sites %>%
 
 land_use_type <- sites %>%
   tibble() %>%
-  mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
-                             habitat_group == "village" ~ site_habitat,
-                             habitat_group == "proximal_agriculture" ~ "agriculture",
-                             habitat_group == "distal_agriculture" ~ "agriculture",
-                             TRUE ~ habitat_group)) %>%
   group_by(village, landuse) %>%
   summarise(tn = n() * 4)
 
@@ -75,7 +73,7 @@ traps_in_grid <- mapply(X = sites %>%
     list(st_join(X, Y, st_within))
   }) %>%
   do.call(rbind, .) %>%
-  select(village = village.x, visit, grid_number, trap_number, site_habitat, grid_id, trap_point = geometry)
+  select(village = village.x, visit, grid_number, trap_number, landuse, grid_id, trap_point = geometry)
 
 grids_with_traps <- mapply(X = sites %>%
                              group_by(village, grid_number) %>%
@@ -120,19 +118,21 @@ for(i in 1:length(grids_with_traps))  {
   
   grids_plot[[i]] <- ggplot() + 
     geom_spatraster_rgb(data = bg[[i]]) +
-    geom_sf(data = grids_with_traps[[i]], aes(fill = tn, colour = tn)) +
+    geom_sf(data = grids_with_traps[[i]] %>%
+              mutate(landuse = str_to_title(landuse)),
+            aes(fill = tn, colour = tn)) +
     scale_colour_viridis_c(limits = c(0, 100)) +
     scale_fill_viridis_c(limits = c(0, 100)) +
     guides(colour = "none") +
     facet_wrap(~ landuse) +
     labs(fill = "Number Trap-Nights",
-         title = str_to_sentence(unique(grids_with_traps[[i]]$village))) +
+         title = str_to_title(unique(grids_with_traps[[i]]$village))) +
     theme_bw() +
     theme(legend.position = "none")
 
 }
 
-combined_grids <- plot_grid(plotlist = grids_plot)
+combined_grids <- plot_grid(plotlist = grids_plot, ncol = 1, rel_heights = c(1, 1.5, 1, 1))
 save_plot(plot = combined_grids, filename = here("output", "grid_locations.pdf"), base_height = 9)
 
 # Description rodents trapped ---------------------------------------------
@@ -143,14 +143,7 @@ trap_success_rate <- round(number_rodents/number_trap_nights * 100, 1)
 
 trap_success_rate_df <- detections %>%
   select(trap_uid) %>%
-  left_join(sites %>%
-              tibble() %>%
-              mutate(landuse = case_when(habitat_group == "forest/fallow" ~ site_habitat,
-                                         habitat_group == "village" ~ site_habitat,
-                                         habitat_group == "proximal_agriculture" ~ "agriculture",
-                                         habitat_group == "distal_agriculture" ~ "agriculture",
-                                         TRUE ~ habitat_group)) %>%
-              select(trap_uid, village, landuse),
+  left_join(sites,
             by = "trap_uid") %>%
   distinct() %>%
   drop_na() %>%
@@ -171,11 +164,10 @@ species_trapped <- detections %>%
   arrange(-N)
 
 species_order <- unique(str_to_sentence(str_replace_all(species_trapped$clean_names, "_", " ")))
-landuse_order <- c("village_inside", "village_outside", "agriculture", "fallow", "forest")
-names(landuse_order) <- c("Village (inside)", "Village (outside)", "Agriculture", "Fallow land", "Forest")
+landuse_order <- c("village", "agriculture", "forest")
+names(landuse_order) <- c("Village", "Agriculture", "Forest")
 village_order <- c("baiama", "lalehun", "lambayama", "seilama")
 names(village_order) <- c("Baiama", "Lalehun", "Lambayama", "Seilama")
-
 
 species_trap_success_rate <- detections %>%
   select(trap_uid, clean_names) %>%
@@ -190,6 +182,7 @@ species_trap_success_rate <- detections %>%
   left_join(., trap_success_rate_df %>%
               group_by(village, landuse) %>%
               summarise(tn = sum(tn))) %>%
+  rowwise() %>%
   mutate(trap_success = round(n/tn * 100, 1),
          value = paste0(n, " (", if(trap_success <= 0.1) "<0.1" else trap_success, "%)"),
          clean_names = factor(str_to_sentence(str_replace_all(clean_names, "_", " ")), levels = species_order),
@@ -361,6 +354,8 @@ table_1a <- richness_combined %>%
   arrange(village, landuse)
 
 write_rds(table_1a, here("output", "table_1a.rds"))
+
+# NEEDS FURTHER READING IF GOING TO USE THIS #
 
 dissimilarity_df <- richness %>%
   filter(!is.na(clean_names)) %>%
