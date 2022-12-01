@@ -12,7 +12,6 @@ write_rds(combined_data, here("data", "input", "combined_data.rds"))
 detections <- combined_data$rodent_data %>%
   filter(trap_uid %in% combined_data$trap_data$trap_uid) %>% # only keep rodents for sites with coordinates
   filter(!str_detect(rodent_uid, "BAM")) %>% # remove Bambawo
-  filter(!str_detect(rodent_uid, "4_BAI_018")) %>% # the trap number for this rodent of 4_BAI_020 is wrong, remove this one for now
   drop_na(clean_names) %>% # remove individuals without a genus identification
   mutate(village = str_split(as.character(trap_uid), "_", simplify = TRUE)[, 1],
          visit = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 2]),
@@ -21,7 +20,7 @@ detections <- combined_data$rodent_data %>%
          grid_number = case_when(grid_number == 6 ~ 7,
                                  TRUE ~ grid_number),
          trap_number = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 5])) %>%
-  select(village, visit, grid_number, trap_number, trap_uid, clean_names) %>%
+  select(rodent_id = rodent_uid, village, visit, grid_number, trap_number, trap_uid, clean_names) %>%
   mutate(clean_names = case_when(clean_names == "mus_spp" & grid_number %in% c(6, 7) ~ "mus_musculus",
                                  clean_names == "mus_spp" ~ "mus_minutoides",
                                  TRUE ~ clean_names)) %>% # for now we will assign all village trapped mus to mus_musculus and all others to mus_minutoides
@@ -55,7 +54,6 @@ sites <- combined_data$trap_data %>%
   tibble(.) %>%
   select(-geometry) %>%
   distinct(village, visit, grid_number, trap_number, landuse, longitude, latitude, .keep_all = TRUE) %>%
-  select(village, visit, grid_number, trap_number, landuse, longitude, latitude) %>%
   st_as_sf(coords = c("longitude", "latitude")) %>%
   st_set_crs(value = default_CRS) %>%
   st_transform(crs = SL_UTM) %>%
@@ -146,6 +144,10 @@ assign_traps_to_cells <- function(all_sites = sites) {
 
 sites_grids <- assign_traps_to_cells(sites)
 
+write_rds(x = list(detections = detections,
+                   sites_grids = sites_grids),
+          here("data", "observed_data", "descriptive_data.rds"))
+
 write_rds(sites_grids, here("data", "synthetic_data", "sites_grids.rds"))
 
 sites_in_grid <- sites_grids$select_site
@@ -167,14 +169,15 @@ grid_coords <- bind_rows(grid_coords)
 visualise_sites_in_grid <- lapply(sites_in_grid, function(x) {
   
   x %>% 
-    group_by(visit, site, site_easting, site_northing) %>%
+    group_by(village, grid_number, visit, site, site_easting, site_northing) %>%
     summarise(TN = n() * 4) %>%
     st_as_sf(coords = c("site_easting", "site_northing")) %>%
     st_set_crs(value = SL_UTM) %>%
     ggplot() +
     geom_sf(aes(colour = TN)) +
     facet_wrap(~ visit) +
-    theme_bw()
+    theme_bw() +
+    labs(title = paste0(str_to_sentence(x$village), ": ", x$grid_number))
   
 })
 
@@ -309,15 +312,21 @@ date_set <- combined_trap_nights %>%
   mutate(date_set = coalesce(date_set.x, date_set.y)) %>%
   distinct(date_set, visit, unique_site, site_easting, site_northing)
 
+write_rds(date_set, here("data", "synthetic_data", "date_set.rds"))
+
 # Monthly rainfall --------------------------------------------------------
 # For the precipitation data we need to provide lon and lat points.     #
 # We extract the centre of the trapping sites for this.                 #
 
 tile_coords <- st_coordinates(st_centroid(st_as_sfc(st_bbox(combined_data$trap_data), crs = default_CRS)))
 
-worldclim_tile("worldclim", var = "prec", res = 0.5, lon = tile_coords[1], lat = tile_coords[2], path = here("data", "geodata"))
+worldclim_tile(var = "prec", res = 0.5, lon = tile_coords[1], lat = tile_coords[2], path = here("data", "geodata"))
 
 precip_rast <- rast(here("data", "geodata", "wc2.1_tiles", "tile_30_wc2.1_30s_prec.tif"))
+
+ggplot() +
+  geom_spatraster(data = precip_rast) +
+  facet_wrap(~lyr)
 
 month_split <- date_set %>%
   group_by(unique_site, visit, site_easting, site_northing) %>%

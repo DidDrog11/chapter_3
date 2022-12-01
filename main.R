@@ -1,8 +1,8 @@
 # Load packages and project wide values
-source(here::here("R", "setup.R"))
+source(here::here("R", "00_setup.R"))
 
 # Load cleaned data
-source(here("R", "load_data.R"))
+source(here("R", "01_load_data.R"))
 
 # Produce descriptive tables
 source(here("R", "descriptive.R"))

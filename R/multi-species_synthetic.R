@@ -152,11 +152,11 @@ for(j in 1:J) {
   elevation_mat[[j]] <- raw_occ$elevation[[j]]
 }
 
-occ_covs <- abind(landuse = landuse_mat,
-                  village = village_mat,
-                  distance_building = building_mat,
-                  distance_village = dist_village_mat,
-                  elevation = elevation_mat)
+occ_covs <- list(landuse = landuse_mat,
+                 village = village_mat,
+                 distance_building = building_mat,
+                 distance_village = dist_village_mat,
+                 elevation = elevation_mat)
 
 write_rds(occ_covs, here("data", "synthetic_data", "occ_covs.rds"))
 
@@ -170,6 +170,10 @@ data_msom <- list(y = y,
                   det.covs = det_covs,
                   coords = coords)
 
+data_msom_spatial <- list(y = y,
+                          occ.covs = as.data.frame(occ_covs),
+                          det.covs = det_covs,
+                          coords = coords)
 
 # Multi-species occupancy model -------------------------------------------
 
@@ -208,6 +212,7 @@ det_ms_formula_3b <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 occ_ms_formula_4 <- ~ landuse + landuse*village + scale(elevation)
 # Detection
 det_ms_formula_4 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+
 # Distances between sites
 dist_sites <- dist(data_msom$coords)
 # Exponential covariance model
@@ -252,7 +257,7 @@ ms_priors_spatial <- list(beta.comm.normal = list(mean = 0, var = 2.72),
                           phi.unif = list(a = 3 / max_dist, b = 3 / min_dist))
 
 # Intercept only model ----------------------------------------------------
-# Run intercept only model
+# Run intercept only model takes ~ 40 mins
 
 if(!file.exists(here("data", "model_output", "intercept_only.rds"))) {
   
@@ -280,7 +285,17 @@ summary(out_ms_int, level = "both")
 
 waicOcc(out_ms_int)
 
-ppc_ms_out_int <- ppcOcc(out_ms_int, 'chi-squared', group = 1)
+if(!file.exists(here("data", "model_output", "ppc_ms_out_int.rds"))) {
+  
+  ppc_ms_out_int <- ppcOcc(out_ms_int, 'chi-squared', group = 1)
+
+  write_rds(ppc_ms_out_int, here("data", "model_output", "ppc_ms_out_int.rds"))
+  
+} else {
+  
+  ppc_ms_out_int <- read_rds(here("data", "model_output", "ppc_ms_out_int.rds"))
+  
+}
 
 summary(ppc_ms_out_int)
 
@@ -301,9 +316,10 @@ ggplot(data = pred_df_int, aes(x = psi, y = species, fill = species)) +
 
 
 # Model 1 --------------------------------------------------------------
-# Run model
+# Run model takes ~45 mins
 
-if(!file.exists(here("data", "model_output", "full_model.rds"))) {
+if(!file.exists(here("data", "model_output", "model_1.rds"))) {
+  
   out_ms_1 <- msPGOcc(occ.formula = occ_ms_formula_1, 
                       det.formula = det_ms_formula_1, 
                       data = data_msom, 
@@ -317,17 +333,27 @@ if(!file.exists(here("data", "model_output", "full_model.rds"))) {
                       n.thin = 50, 
                       n.chains = 3)
   
-  write_rds(out_ms_1, here("data", "model_output", "full_model.rds"))
+  write_rds(out_ms_1, here("data", "model_output", "model_1.rds"))
   
 } else {
   
-  out_ms_1 <- read_rds(here("data", "model_output", "full_model.rds"))
+  out_ms_1 <- read_rds(here("data", "model_output", "model_1.rds"))
   
 }
 
 summary(out_ms_1, level = "both")
 
-ppc_ms_out_1 <- ppcOcc(out_ms_1, 'chi-squared', group = 1)
+if(!file.exists(here("data", "model_output", "ppc_ms_out_1.rds"))) {
+  
+  ppc_ms_out_1 <- ppcOcc(out_ms_1, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_1, here("data", "model_output", "ppc_ms_out_1.rds"))
+  
+} else {
+  
+  ppc_ms_out_1 <- read_rds(here("data", "model_output", "ppc_ms_out_1.rds"))
+  
+}
 
 summary(ppc_ms_out_1)
 
@@ -433,18 +459,19 @@ save_plot(plot = combined_plot, filename = here("output", "model_1_plot.png"),
 
 
 # Model 2 -----------------------------------------------------
-# Run model 2
+# Run model 2 takes ~46 mins
 if(!file.exists(here("data", "model_output", "model_2.rds"))) {
+  
   out_ms_2 <- msPGOcc(occ.formula = occ_ms_formula_2, 
                       det.formula = det_ms_formula_2, 
                       data = data_msom, 
                       inits = ms_inits, 
-                      n.samples = 5000, 
+                      n.samples = 30000, 
                       priors = ms_priors, 
                       n.omp.threads = 1, 
                       verbose = TRUE, 
-                      n.report = 1000, 
-                      n.burn = 1500,
+                      n.report = 6000, 
+                      n.burn = 10000,
                       n.thin = 50, 
                       n.chains = 3)
   
@@ -460,6 +487,19 @@ summary(out_ms_2, level = "both")
 
 waicOcc(out_ms_2)
 
+if(!file.exists(here("data", "model_output", "ppc_ms_out_2.rds"))) {
+  
+  ppc_ms_out_2 <- ppcOcc(out_ms_2, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_2, here("data", "model_output", "ppc_ms_out_2.rds"))
+  
+} else {
+  
+  ppc_ms_out_2 <- read_rds(here("data", "model_output", "ppc_ms_out_2.rds"))
+  
+}
+
+summary(ppc_ms_out_2)
 
 # Produce prediction dataframe --------------------------------------------
 
@@ -534,6 +574,18 @@ if(!file.exists(here("data", "model_output", "model_3.rds"))) {
 summary(out_ms_3, level = "both")
 
 waicOcc(out_ms_3)
+
+if(!file.exists(here("data", "model_output", "ppc_ms_out_3.rds"))) {
+  
+  ppc_ms_out_3 <- ppcOcc(out_ms_3, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_3, here("data", "model_output", "ppc_ms_out_3.rds"))
+  
+} else {
+  
+  ppc_ms_out_3 <- read_rds(here("data", "model_output", "ppc_ms_out_3.rds"))
+  
+}
 
 ppc_ms_out_3 <- ppcOcc(out_ms_3, 'chi-squared', group = 1)
 
@@ -618,6 +670,7 @@ data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "seilama"] <- 4
 data_msom_f$occ.covs$village <- as.numeric(data_msom_f$occ.covs$village)
 
 if(!file.exists(here("data", "model_output", "model_3b.rds"))) {
+  
   out_ms_3b <- msPGOcc(occ.formula = occ_ms_formula_3b, 
                       det.formula = det_ms_formula_3b, 
                       data = data_msom_f, 
@@ -643,6 +696,20 @@ summary(out_ms_3b, level = "both")
 
 waicOcc(out_ms_3b)
 
+
+if(!file.exists(here("data", "model_output", "ppc_ms_out_3b.rds"))) {
+  
+  ppc_ms_out_3b <- ppcOcc(out_ms_3b, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_3b, here("data", "model_output", "ppc_ms_out_3b.rds"))
+  
+} else {
+  
+  ppc_ms_out_3b <- read_rds(here("data", "model_output", "ppc_ms_out_3b.rds"))
+  
+}
+
+summary(ppc_ms_out_3b)
 
 # Produce prediction dataframe --------------------------------------------
 
@@ -717,7 +784,7 @@ if(!file.exists(here("data", "model_output", "model_4.rds"))) {
 
   out_ms_4 <- spMsPGOcc(occ.formula = occ_ms_formula_4, 
                         det.formula = det_ms_formula_4, 
-                        data = data_msom, 
+                        data = data_msom_spatial, 
                         inits = ms_inits_spatial, 
                         n.batch = 400,
                         batch.length = 25,
@@ -745,4 +812,22 @@ summary(out_ms_4, level = "both")
 
 waicOcc(out_ms_4)
 
-gof_model_4 <- ppcOcc(out_ms_4)
+if(!file.exists(here("data", "model_output", "ppc_ms_out_4.rds"))) {
+  
+  ppc_ms_out_4 <- ppcOcc(out_ms_4, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_4, here("data", "model_output", "ppc_ms_out_4.rds"))
+  
+} else {
+  
+  ppc_ms_out_4 <- read_rds(here("data", "model_output", "ppc_ms_out_4.rds"))
+  
+}
+
+summary(ppc_ms_out_4)
+
+all_species <- tibble(model = c("out_ms_int", "out_ms_1", "out_ms_2", "out_ms_3", "out_ms_3b", "out_ms_4"),
+                      waic = c(5666, 5297, 5291, 5289, 5056, 5215),
+                      com_bpc = c(0.63, .61, 0.61, 0.59, 0.27, 0.60),
+                      max_bpc = c(0.87, 0.92, 0.93, 0.91, 0.55, 0.93),
+                      min_bpc = c(0.19, 0.15, 0.16, 0.12, 0, 0.17))

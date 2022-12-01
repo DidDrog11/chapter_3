@@ -31,6 +31,12 @@ synthetic_data <- read_rds(here("data", "synthetic_data", "synthetic_data.rds"))
 sites <- synthetic_data$synthetic_sites %>%
   st_as_sf(coords = c("trap_easting", "trap_northing"), crs = SL_UTM)
 
+date_set <- read_rds(here("data", "synthetic_data", "date_set.rds")) %>%
+  select(village, visit, date_set) %>%
+  group_by(village, visit) %>%
+  arrange(date_set) %>%
+  slice(1)
+
 detections <- synthetic_data$synthetic_detections
 
 occurrence_covariates <- read_rds(here("data", "synthetic_data", "occurrence_covariates.rds"))
@@ -121,6 +127,7 @@ for(i in 1:length(grids_with_traps))  {
     geom_sf(data = grids_with_traps[[i]] %>%
               mutate(landuse = str_to_title(landuse)),
             aes(fill = tn, colour = tn)) +
+    coord_sf(expand = FALSE) +
     scale_colour_viridis_c(limits = c(0, 100)) +
     scale_fill_viridis_c(limits = c(0, 100)) +
     guides(colour = "none") +
@@ -128,12 +135,18 @@ for(i in 1:length(grids_with_traps))  {
     labs(fill = "Number Trap-Nights",
          title = str_to_title(unique(grids_with_traps[[i]]$village))) +
     theme_bw() +
-    theme(legend.position = "none")
+    theme(legend.position = "none") +
+    annotation_scale()
 
 }
 
+save_plot(plot = grids_plot[[1]], filename = here("output", "baiama_grid_locations.png"))
+save_plot(plot = grids_plot[[2]], filename = here("output", "lalehun_grid_locations.png"))
+save_plot(plot = grids_plot[[3]], filename = here("output", "lambayama_grid_locations.png"))
+save_plot(plot = grids_plot[[4]], filename = here("output", "seilama_grid_locations.png"))
+
 combined_grids <- plot_grid(plotlist = grids_plot, ncol = 1, rel_heights = c(1, 1.5, 1, 1))
-save_plot(plot = combined_grids, filename = here("output", "grid_locations.pdf"), base_height = 9)
+save_plot(plot = combined_grids, filename = here("output", "grid_locations.pdf"), base_height = 12)
 
 # Description rodents trapped ---------------------------------------------
 
@@ -151,7 +164,6 @@ trap_success_rate_df <- detections %>%
   summarise(n_rodents = n()) %>%
   left_join(land_use_type, by = c("village", "landuse")) %>%
   mutate(trap_success = round(n_rodents/tn * 100, 1))
-  
 
 # Description species trapped ---------------------------------------------
 
@@ -221,6 +233,7 @@ species_trap_success_village <- detections %>%
 table_1b <- left_join(species_trap_success_village, species_trap_success_rate, by = c("clean_names", "village"))
 
 write_rds(table_1b, here("output", "table_1b.rds"))
+
 
 # Species diversity -------------------------------------------------------
 
@@ -346,8 +359,9 @@ table_1a <- richness_combined %>%
   mutate(village = factor(village, levels = c("Combined", str_to_sentence(village_order)), labels = c("All villages", names(village_order))),
          landuse = case_when(is.na(landuse) ~ "Combined",
                              TRUE ~ as.character(landuse)),
-         landuse = factor(landuse, levels = c("Village (inside)", "Village (outside)",
-                                              "Agriculture", "Fallow land", "Forest",
+         landuse = factor(landuse, levels = c("Village",
+                                              "Agriculture",
+                                              "Forest",
                                               "Combined")),
          shannon_diversity = round(shannon_diversity, 2),
          TN = paste0(TN, " (", round(N/TN * 100, 1), "%)")) %>%
