@@ -14,6 +14,8 @@ sites <- observed_data$sites_grids$select_site %>%
   bind_rows() %>%
   select(date_set, site_id = unique_site, site, landuse, site_easting, site_northing, village, visit, grid_number, trap_id = trap_uid, trap_easting, trap_northing, elevation)
 
+trap_nights <- read_rds(here("data", "observed_data", "trap_nights.rds"))
+
 # Produce y --------------------------------------
 
 # produce a long format of detections with a single record per site, visit  #
@@ -38,13 +40,23 @@ y_long <- y_long %>%
 # names of the "species" trapped
 sp_codes <- sort(unique(y_long$species))
 # names of the sites trapping occurred at
-site_match <- tibble(site_code = 1:length(unique(observed_data$sites_grids$select_site)),
-                     unique_site = unique(synthetic_data$synthetic_sites$unique_site))
+site_match <- tibble(site_code = 1:length(unique(sites$site_id)),
+                     site_id = unique(sites$site_id))
 site_codes <- site_match$site_code
+
+# define which sites were surveyed at each replicate
+trap_nights_df <- site_match %>%
+  left_join(trap_nights) %>%
+  arrange(visit) %>%
+  mutate(trap_nights = case_when(trap_nights > 1 ~ 1,
+                                 TRUE ~ as.numeric(NA))) %>%
+  pivot_wider(names_from = visit, values_from = trap_nights) %>%
+  arrange(site_code) %>%
+  select(-site_id)
 
 # associate sites with number in site_match
 y_long <- y_long %>%
-  left_join(site_match, by = "unique_site") %>%
+  left_join(site_match, by = "site_id") %>%
   group_by(site_code) %>%
   mutate(non_0_site_code = cur_group_id())
 
@@ -54,12 +66,12 @@ non_0_site_code <- unique(y_long$site_code)
 N <- length(sp_codes)
 
 # number of replicates
-K <- max(synthetic_data$synthetic_sites$visit)
+K <- max(sites$visit)
 
 # number of sites
 J <- length(site_codes)
 
-if(!file.exists(here("data", "synthetic_data", "y_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_data", "y_sp_subset.rds"))) {
   
   y = array(NA, dim = c(N, J, K), dimnames = list(sp_codes, site_codes[1:J], 1:K))
   
@@ -78,39 +90,47 @@ if(!file.exists(here("data", "synthetic_data", "y_sp_subset.rds"))) {
         y[curr_sp, j, k] <- 1
         # and to 0 otherwise
         y[-curr_sp, j, k] <- 0
-      } else {
-        y[1:N, j, k] <- 0
-      }
+      } else 
+        # if plot j was not sampled at replicate k (+1 as first column is the site code) set it to NA
+        if(is.na(trap_nights_df[j, k+1])) {
+          y[1:N, j, k] <- NA
+        } else 
+          # otherwise no rodent was trapped
+        { 
+          y[1:N, j, k] <- 0 
+        }
     }
   }
-  
-  bai_lam_sites <- site_match$site_code[str_detect(site_match$unique_site, "baiama|lambayama")]
-  # set the unsampled replicates in Baiama and Lambayama to NA
-  y[1:N, bai_lam_sites, 1:2] <- NA
   
   str(y)
   
   # this produces our y array which can be saved to save time on repeat runs
   
-  write_rds(y, here("data", "synthetic_data", "y_sp_subset.rds"))
+  write_rds(y, here("data", "observed_data", "y_sp_subset.rds"))
   
 } else {
   
-  y <- read_rds(here("data", "synthetic_data", "y_sp_subset.rds"))
+  y <- read_rds(here("data", "observed_data", "y_sp_subset.rds"))
   
 }
 
-# summarise the total number of observations for each species
+# summarise the total number of observations for each species at distinct sites
 observed_species <- tibble(species = names(apply(y, 1, sum, na.rm = TRUE)),
-                           Observed = apply(y, 1, sum, na.rm = TRUE))
+                           observed = apply(y, 1, sum, na.rm = TRUE),
+                           check_number = y_long %>%
+                             distinct(site_code, visit, species) %>%
+                             group_by(species) %>%
+                             summarise(n = n()) %>%
+                             arrange(species) %>%
+                             pull(n))
 
 # Produce detection covariates --------------------------------------------
 # here we add covariates that can impact the probability of detecting a rodent if it is present
 
-if(!file.exists(here("data", "synthetic_data", "det_covs_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_data", "det_covs_sp_subset.rds"))) {
   
-  raw_det <- read_rds(here("data", "synthetic_data", "detection_covariates.rds")) %>%
-    left_join(site_match, by = c("unique_site"))
+  raw_det <- read_rds(here("data", "observed_data", "detection_covariates.rds")) %>%
+    left_join(site_match, by = c("site_id"))
   
   precip_mat <- matrix(NA, nrow = J, ncol = K)
   moon_mat <- matrix(NA, nrow = J, ncol = K)
@@ -134,31 +154,25 @@ if(!file.exists(here("data", "synthetic_data", "det_covs_sp_subset.rds"))) {
                    moon_fraction = moon_mat,
                    trap_nights = tn_mat)
   
-  write_rds(det_covs, here("data", "synthetic_data", "det_covs_sp_subset.rds"))
+  write_rds(det_covs, here("data", "observed_data", "det_covs_sp_subset.rds"))
   
 } else {
   
-  det_covs <- read_rds(here("data", "synthetic_data", "det_covs_sp_subset.rds"))
+  det_covs <- read_rds(here("data", "observed_data", "det_covs_sp_subset.rds"))
   
 }
 
-# sites with NA trap_nights were not sampled during that replicate, we use this to recode y
-for(n in 1:N) {
-  for(k in 1:K) {
-    y[n, 1:J, k][is.na(det_covs$trap_nights[, k])] <- NA
-  }
-}
-
-
 # Produce occurrence covariates -------------------------------------------
-raw_occ <- read_rds(here("data", "synthetic_data", "occurrence_covariates.rds")) %>%
-  left_join(site_match, by = c("unique_site"))
+raw_occ <- read_rds(here("data", "observed_data", "occurrence_covariates.rds")) %>%
+  left_join(site_match, by = c("site_id"))
 
 landuse_mat <- matrix(NA, nrow = J, ncol = 1)
 village_mat <- matrix(NA, nrow = J, ncol = 1)
 building_mat <- matrix(NA, nrow = J, ncol = 1)
 dist_village_mat <- matrix(NA, nrow = J, ncol = 1)
 elevation_mat <- matrix(NA, nrow = J, ncol = 1)
+population_mat <- matrix(NA, nrow = J, ncol = 1)
+population_q_mat <- matrix(NA, nrow = J, ncol = 1)
 
 for(j in 1:J) {
   landuse_mat[[j]] <- raw_occ$landuse[[j]]
@@ -166,23 +180,27 @@ for(j in 1:J) {
   building_mat[[j]] <- raw_occ$distance_building[[j]]
   dist_village_mat[[j]] <- raw_occ$distance_centre[[j]]
   elevation_mat[[j]] <- raw_occ$elevation[[j]]
+  population_mat[[j]] <- raw_occ$population[[j]]
+  population_q_mat[[j]] <- raw_occ$pop_quartile[[j]]
 }
 
 occ_covs <- list(landuse = landuse_mat,
                  village = village_mat,
                  distance_building = building_mat,
                  distance_village = dist_village_mat,
-                 elevation = elevation_mat)
+                 elevation = elevation_mat,
+                 population = population_mat,
+                 population_q = population_q_mat)
 
-write_rds(occ_covs, here("data", "synthetic_data", "occ_covs.rds"))
+write_rds(occ_covs, here("data", "observed_data", "occ_covs.rds"))
 
 # Format site coordinates -------------------------------------------------
-coords <- read_rds(here("data", "synthetic_data", "site_coords.rds"))
+coords <- read_rds(here("data", "observed_data", "site_coords.rds"))
 
 
 # Spatial model data ------------------------------------------------------
 # Distances between sites
-dist_sites <- dist(data_msom$coords)
+dist_sites <- dist(coords)
 # Exponential covariance model
 cov_model <- "exponential"
 
@@ -216,27 +234,39 @@ det_ms_formula_int <- ~ scale(precipitation) + moon_fraction + scale(trap_nights
 
 # Model structure 1
 # Occurrence
-occ_ms_formula_1 <- ~ landuse + village + scale(distance_building) + scale(distance_village) + scale(elevation)
+occ_ms_formula_1 <- ~ landuse + village + scale(distance_building) + scale(elevation)
 # Detection
 det_ms_formula_1 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
-# Model structure 2
+# Model structure 2 random intercept, fixed predictor in individual level
 # Occurrence
-occ_ms_formula_2 <- ~ landuse + village + landuse*village + scale(elevation)
+occ_ms_formula_2 <- ~ landuse + (1|village) + scale(elevation)
 # Detection
 det_ms_formula_2 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
-# Model structure 3
+# Model structure 3 random intercept, random slope
 # Occurrence
-occ_ms_formula_3 <- ~ landuse + landuse*village + scale(elevation)
+occ_ms_formula_3 <- ~ landuse + (landuse|village) + scale(elevation)
 # Detection
 det_ms_formula_3 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 3b village is a random effect
 # Occurrence
-occ_ms_formula_3b <- ~ landuse + (1|village)
+occ_ms_formula_3b <- ~ landuse + (landuse|village) + scale(distance_building) + scale(elevation)
 # Detection
 det_ms_formula_3b <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+
+# Model structure 3c quartile of population density is a random effect
+# Occurrence
+occ_ms_formula_3c <- ~ landuse + (landuse|population_q) + scale(distance_building) + scale(elevation)
+# Detection
+det_ms_formula_3c <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+
+# Model structure 3d population density is added as a scaled effect
+# Occurrence
+occ_ms_formula_3d <- ~ landuse + scale(distance_building) + scale(elevation) + scale(population)
+# Detection
+det_ms_formula_3d <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 4 (spatial)
 # Occurrence
@@ -283,8 +313,9 @@ ms_priors_spatial <- list(beta.comm.normal = list(mean = 0, var = 2.72),
 
 ## Intercept only model ----------------------------------------------------
 # Run intercept only model takes ~ 25 mins
+dir.create(here("data", "observed_model_output"))
 
-if(!file.exists(here("data", "model_output", "intercept_only_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_observed_model_output", "intercept_only_sp_subset.rds"))) {
   
   out_ms_int <- msPGOcc(occ.formula = occ_ms_formula_int, 
                         det.formula = det_ms_formula_int, 
@@ -298,11 +329,11 @@ if(!file.exists(here("data", "model_output", "intercept_only_sp_subset.rds"))) {
                         n.thin = 50, 
                         n.chains = 3)
   
-  write_rds(out_ms_int, here("data", "model_output", "intercept_only_sp_subset.rds"))
+  write_rds(out_ms_int, here("data", "observed_model_output", "intercept_only_sp_subset.rds"))
   
 } else {
   
-  out_ms_int <- read_rds(here("data", "model_output", "intercept_only_sp_subset.rds"))
+  out_ms_int <- read_rds(here("data", "observed_model_output", "intercept_only_sp_subset.rds"))
   
 }
 
@@ -310,15 +341,15 @@ summary(out_ms_int, level = "both")
 
 waicOcc(out_ms_int)
 
-if(!file.exists(here("data", "model_output", "ppc_ms_out_int_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_int_sp_subset.rds"))) {
   
   ppc_ms_out_int <- ppcOcc(out_ms_int, 'chi-squared', group = 1)
   
-  write_rds(ppc_ms_out_int, here("data", "model_output", "ppc_ms_out_int_sp_subset.rds"))
+  write_rds(ppc_ms_out_int, here("data", "observed_model_output", "ppc_ms_out_int_sp_subset.rds"))
   
 } else {
   
-  ppc_ms_out_int <- read_rds(here("data", "model_output", "ppc_ms_out_int_sp_subset.rds"))
+  ppc_ms_out_int <- read_rds(here("data", "observed_model_output", "ppc_ms_out_int_sp_subset.rds"))
   
 }
 
@@ -327,7 +358,7 @@ summary(ppc_ms_out_int)
 ## Model 1 --------------------------------------------------------------
 # Run model takes ~25 mins
 
-if(!file.exists(here("data", "model_output", "model_1_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "model_1_sp_subset.rds"))) {
   
   out_ms_1 <- msPGOcc(occ.formula = occ_ms_formula_1, 
                       det.formula = det_ms_formula_1, 
@@ -342,25 +373,25 @@ if(!file.exists(here("data", "model_output", "model_1_sp_subset.rds"))) {
                       n.thin = 50, 
                       n.chains = 3)
   
-  write_rds(out_ms_1, here("data", "model_output", "model_1_sp_subset.rds"))
+  write_rds(out_ms_1, here("data", "observed_model_output", "model_1_sp_subset.rds"))
   
 } else {
   
-  out_ms_1 <- read_rds(here("data", "model_output", "model_1_sp_subset.rds"))
+  out_ms_1 <- read_rds(here("data", "observed_model_output", "model_1_sp_subset.rds"))
   
 }
 
 summary(out_ms_1, level = "both")
 
-if(!file.exists(here("data", "model_output", "ppc_ms_out_1_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_1_sp_subset.rds"))) {
   
   ppc_ms_out_1 <- ppcOcc(out_ms_1, 'chi-squared', group = 1)
   
-  write_rds(ppc_ms_out_1, here("data", "model_output", "ppc_ms_out_1_sp_subset.rds"))
+  write_rds(ppc_ms_out_1, here("data", "observed_model_output", "ppc_ms_out_1_sp_subset.rds"))
   
 } else {
   
-  ppc_ms_out_1 <- read_rds(here("data", "model_output", "ppc_ms_out_1_sp_subset.rds"))
+  ppc_ms_out_1 <- read_rds(here("data", "observed_model_output", "ppc_ms_out_1_sp_subset.rds"))
   
 }
 
@@ -371,7 +402,7 @@ waicOcc(out_ms_1)
 
 ## Model 2 -----------------------------------------------------
 # Run model 2 takes ~27 mins
-if(!file.exists(here("data", "model_output", "model_2_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "model_2_sp_subset.rds"))) {
   
   out_ms_2 <- msPGOcc(occ.formula = occ_ms_formula_2, 
                       det.formula = det_ms_formula_2, 
@@ -386,11 +417,11 @@ if(!file.exists(here("data", "model_output", "model_2_sp_subset.rds"))) {
                       n.thin = 50, 
                       n.chains = 3)
   
-  write_rds(out_ms_2, here("data", "model_output", "model_2_sp_subset.rds"))
+  write_rds(out_ms_2, here("data", "observed_model_output", "model_2_sp_subset.rds"))
   
 } else {
   
-  out_ms_2 <- read_rds(here("data", "model_output", "model_2_sp_subset.rds"))
+  out_ms_2 <- read_rds(here("data", "observed_model_output", "model_2_sp_subset.rds"))
   
 }
 
@@ -398,15 +429,15 @@ summary(out_ms_2, level = "both")
 
 waicOcc(out_ms_2)
 
-if(!file.exists(here("data", "model_output", "ppc_ms_out_2_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_2_sp_subset.rds"))) {
   
   ppc_ms_out_2 <- ppcOcc(out_ms_2, 'chi-squared', group = 1)
   
-  write_rds(ppc_ms_out_2, here("data", "model_output", "ppc_ms_out_2_sp_subset.rds"))
+  write_rds(ppc_ms_out_2, here("data", "observed_model_output", "ppc_ms_out_2_sp_subset.rds"))
   
 } else {
   
-  ppc_ms_out_2 <- read_rds(here("data", "model_output", "ppc_ms_out_2_sp_subset.rds"))
+  ppc_ms_out_2 <- read_rds(here("data", "observed_model_output", "ppc_ms_out_2_sp_subset.rds"))
   
 }
 
@@ -416,7 +447,7 @@ summary(ppc_ms_out_2)
 
 ## Model 3 -----------------------------------------------------------------
 
-if(!file.exists(here("data", "model_output", "model_3_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "model_3_sp_subset.rds"))) {
   
   
   out_ms_3 <- msPGOcc(occ.formula = occ_ms_formula_3, 
@@ -432,11 +463,11 @@ if(!file.exists(here("data", "model_output", "model_3_sp_subset.rds"))) {
                       n.thin = 50, 
                       n.chains = 3)
   
-  write_rds(out_ms_3, here("data", "model_output", "model_3_sp_subset.rds"))
+  write_rds(out_ms_3, here("data", "observed_model_output", "model_3_sp_subset.rds"))
   
 } else {
   
-  out_ms_3 <- read_rds(here("data", "model_output", "model_3_sp_subset.rds"))
+  out_ms_3 <- read_rds(here("data", "observed_model_output", "model_3_sp_subset.rds"))
   
 }
 
@@ -444,15 +475,15 @@ summary(out_ms_3, level = "both")
 
 waicOcc(out_ms_3)
 
-if(!file.exists(here("data", "model_output", "ppc_ms_out_3_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3_sp_subset.rds"))) {
   
   ppc_ms_out_3 <- ppcOcc(out_ms_3, 'chi-squared', group = 1)
   
-  write_rds(ppc_ms_out_3, here("data", "model_output", "ppc_ms_out_3_sp_subset.rds"))
+  write_rds(ppc_ms_out_3, here("data", "observed_model_output", "ppc_ms_out_3_sp_subset.rds"))
   
 } else {
   
-  ppc_ms_out_3 <- read_rds(here("data", "model_output", "ppc_ms_out_3_sp_subset.rds"))
+  ppc_ms_out_3 <- read_rds(here("data", "observed_model_output", "ppc_ms_out_3_sp_subset.rds"))
   
 }
 
@@ -472,7 +503,7 @@ data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "lambayama"] <- 3
 data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "seilama"] <- 4
 data_msom_f$occ.covs$village <- as.numeric(data_msom_f$occ.covs$village)
 
-if(!file.exists(here("data", "model_output", "model_3b_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "model_3b_sp_subset.rds"))) {
   
   out_ms_3b <- msPGOcc(occ.formula = occ_ms_formula_3b, 
                        det.formula = det_ms_formula_3b, 
@@ -487,11 +518,11 @@ if(!file.exists(here("data", "model_output", "model_3b_sp_subset.rds"))) {
                        n.thin = 50, 
                        n.chains = 3)
   
-  write_rds(out_ms_3b, here("data", "model_output", "model_3b_sp_subset.rds"))
+  write_rds(out_ms_3b, here("data", "observed_model_output", "model_3b_sp_subset.rds"))
   
 } else {
   
-  out_ms_3b <- read_rds(here("data", "model_output", "model_3b_sp_subset.rds"))
+  out_ms_3b <- read_rds(here("data", "observed_model_output", "model_3b_sp_subset.rds"))
   
 }
 
@@ -500,15 +531,15 @@ summary(out_ms_3b, level = "both")
 waicOcc(out_ms_3b)
 
 
-if(!file.exists(here("data", "model_output", "ppc_ms_out_3b_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3b_sp_subset.rds"))) {
   
   ppc_ms_out_3b <- ppcOcc(out_ms_3b, 'chi-squared', group = 1)
   
-  write_rds(ppc_ms_out_3b, here("data", "model_output", "ppc_ms_out_3b_sp_subset.rds"))
+  write_rds(ppc_ms_out_3b, here("data", "observed_model_output", "ppc_ms_out_3b_sp_subset.rds"))
   
 } else {
   
-  ppc_ms_out_3b <- read_rds(here("data", "model_output", "ppc_ms_out_3b_sp_subset.rds"))
+  ppc_ms_out_3b <- read_rds(here("data", "observed_model_output", "ppc_ms_out_3b_sp_subset.rds"))
   
 }
 
@@ -519,7 +550,7 @@ summary(ppc_ms_out_3b)
 
 ## Model 4 (Spatial) -------------------------------------------------------
 
-if(!file.exists(here("data", "model_output", "model_4_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "model_4_sp_subset.rds"))) {
   
   out_ms_4 <- sfMsPGOcc(occ.formula = occ_ms_formula_4, 
                         det.formula = det_ms_formula_4, 
@@ -540,11 +571,11 @@ if(!file.exists(here("data", "model_output", "model_4_sp_subset.rds"))) {
                         n.chains = 3,
                         tuning = list(phi = 0.5))
   
-  write_rds(out_ms_4, here("data", "model_output", "model_4_sp_subset.rds"))
+  write_rds(out_ms_4, here("data", "observed_model_output", "model_4_sp_subset.rds"))
   
 } else {
   
-  out_ms_4 <- read_rds(here("data", "model_output", "model_4_sp_subset.rds"))
+  out_ms_4 <- read_rds(here("data", "observed_model_output", "model_4_sp_subset.rds"))
   
 }
 
@@ -552,15 +583,15 @@ summary(out_ms_4, level = "both")
 
 waicOcc(out_ms_4)
 
-if(!file.exists(here("data", "model_output", "ppc_ms_out_4_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rds"))) {
   
   ppc_ms_out_4 <- ppcOcc(out_ms_4, 'chi-squared', group = 1)
   
-  write_rds(ppc_ms_out_4, here("data", "model_output", "ppc_ms_out_4_sp_subset.rds"))
+  write_rds(ppc_ms_out_4, here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rds"))
   
 } else {
   
-  ppc_ms_out_4 <- read_rds(here("data", "model_output", "ppc_ms_out_4_sp_subset.rds"))
+  ppc_ms_out_4 <- read_rds(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rds"))
   
 }
 
