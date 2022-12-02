@@ -26,8 +26,7 @@ detections <- combined_data$rodent_data %>%
                                  TRUE ~ clean_names)) %>% # for now we will assign all village trapped mus to mus_musculus and all others to mus_minutoides
   mutate(visit = case_when(str_detect(village, "baiama|lambayama") & visit %in% c(1:4) ~ visit + 2,
                            TRUE ~ visit), # change the visit for baiama and lambayama to keep consistent numberings for dates
-         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number))) %>% # change the trap_uid to reflect this
-  distinct(village, visit, grid_number, trap_number, clean_names, .keep_all = TRUE) # keep all distinct detections of each species at each site for each replicate
+         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number))) # change the trap_uid to reflect this
 
 # Each four night trapping activity will be considered as a single replicate  #
 # The exact location of a trap varied between replicates. To incorporate      #
@@ -47,6 +46,7 @@ sites <- combined_data$trap_data %>%
          landuse = case_when(site_habitat == "forest" ~ "forest",
                              str_detect(site_habitat, "village") ~ "village",
                              str_detect(site_habitat, "banana|cassava|fallow|agriculture|palm|rice") ~ "agriculture",
+                             str_detect(site_use, "Farming") & village == "baiama" & visit == 8 ~ "agriculture",
                              TRUE ~ habitat_group),
          visit = case_when(str_detect(village, "baiama|lambayama") & visit %in% c(1:4) ~ visit + 2,
                            TRUE ~ visit), # change the visit for baiama and lambayama to keep consistent numberings for dates
@@ -323,10 +323,6 @@ tile_coords <- st_coordinates(st_centroid(st_as_sfc(st_bbox(combined_data$trap_d
 worldclim_tile(var = "prec", res = 0.5, lon = tile_coords[1], lat = tile_coords[2], path = here("data", "geodata"))
 
 precip_rast <- rast(here("data", "geodata", "wc2.1_tiles", "tile_30_wc2.1_30s_prec.tif"))
-
-ggplot() +
-  geom_spatraster(data = precip_rast) +
-  facet_wrap(~lyr)
 
 month_split <- date_set %>%
   group_by(unique_site, visit, site_easting, site_northing) %>%
