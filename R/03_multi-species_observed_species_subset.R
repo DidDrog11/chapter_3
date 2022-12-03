@@ -164,7 +164,11 @@ if(!file.exists(here("data", "observed_data", "det_covs_sp_subset.rds"))) {
 
 # Produce occurrence covariates -------------------------------------------
 raw_occ <- read_rds(here("data", "observed_data", "occurrence_covariates.rds")) %>%
-  left_join(site_match, by = c("site_id"))
+  left_join(site_match, by = c("site_id")) %>%
+  mutate(pop_quartile = case_when(str_detect(pop_quartile, "first") ~ 1,
+                                  str_detect(pop_quartile, "second") ~ 2,
+                                  str_detect(pop_quartile, "third") ~ 3,
+                                  str_detect(pop_quartile, "fourth") ~ 4))
 
 landuse_mat <- matrix(NA, nrow = J, ncol = 1)
 village_mat <- matrix(NA, nrow = J, ncol = 1)
@@ -184,8 +188,8 @@ for(j in 1:J) {
   population_q_mat[[j]] <- raw_occ$pop_quartile[[j]]
 }
 
-occ_covs <- list(landuse = landuse_mat,
-                 village = village_mat,
+occ_covs <- list(landuse = factor(landuse_mat),
+                 village = factor(village_mat),
                  distance_building = building_mat,
                  distance_village = dist_village_mat,
                  elevation = elevation_mat,
@@ -240,25 +244,25 @@ det_ms_formula_1 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 2 random intercept, fixed predictor in individual level
 # Occurrence
-occ_ms_formula_2 <- ~ landuse + (1|village) + scale(elevation)
+occ_ms_formula_2 <- ~ landuse + (1|population_q) + scale(distance_building) + scale(elevation)
 # Detection
 det_ms_formula_2 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 3 random intercept, random slope
 # Occurrence
-occ_ms_formula_3 <- ~ landuse + (landuse|village) + scale(elevation)
+occ_ms_formula_3 <- ~ landuse + scale(distance_building) + scale(elevation)
 # Detection
 det_ms_formula_3 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 3b village is a random effect
 # Occurrence
-occ_ms_formula_3b <- ~ landuse + (landuse|village) + scale(distance_building) + scale(elevation)
+occ_ms_formula_3b <- ~ landuse + scale(distance_building)
 # Detection
 det_ms_formula_3b <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 3c quartile of population density is a random effect
 # Occurrence
-occ_ms_formula_3c <- ~ landuse + (landuse|population_q) + scale(distance_building) + scale(elevation)
+occ_ms_formula_3c <- ~ landuse + scale(elevation)
 # Detection
 det_ms_formula_3c <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
@@ -270,7 +274,7 @@ det_ms_formula_3d <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 4 (spatial)
 # Occurrence
-occ_ms_formula_4 <- ~ landuse + landuse*village + scale(elevation)
+occ_ms_formula_4 <- ~ landuse + village + scale(distance_building) + scale(elevation)
 # Detection
 det_ms_formula_4 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
@@ -315,7 +319,7 @@ ms_priors_spatial <- list(beta.comm.normal = list(mean = 0, var = 2.72),
 # Run intercept only model takes ~ 25 mins
 dir.create(here("data", "observed_model_output"))
 
-if(!file.exists(here("data", "observed_observed_model_output", "intercept_only_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_model_output", "intercept_only_sp_subset.rds"))) {
   
   out_ms_int <- msPGOcc(occ.formula = occ_ms_formula_int, 
                         det.formula = det_ms_formula_int, 
@@ -356,7 +360,7 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_int_sp_subset.
 summary(ppc_ms_out_int)
 
 ## Model 1 --------------------------------------------------------------
-# Run model takes ~25 mins
+# Run model takes ~30 mins
 
 if(!file.exists(here("data", "observed_model_output", "model_1_sp_subset.rds"))) {
   
@@ -401,7 +405,7 @@ waicOcc(out_ms_1)
 
 
 ## Model 2 -----------------------------------------------------
-# Run model 2 takes ~27 mins
+# Run model 2 takes ~30 mins
 if(!file.exists(here("data", "observed_model_output", "model_2_sp_subset.rds"))) {
   
   out_ms_2 <- msPGOcc(occ.formula = occ_ms_formula_2, 
@@ -453,13 +457,13 @@ if(!file.exists(here("data", "observed_model_output", "model_3_sp_subset.rds")))
   out_ms_3 <- msPGOcc(occ.formula = occ_ms_formula_3, 
                       det.formula = det_ms_formula_3, 
                       data = data_msom, 
-                      inits = ms_inits, 
-                      n.samples = 5000, 
+                      inits = ms_inits,
+                      n.samples = 30000, 
                       priors = ms_priors, 
                       n.omp.threads = 1, 
                       verbose = TRUE, 
-                      n.report = 1000, 
-                      n.burn = 1500,
+                      n.report = 6000, 
+                      n.burn = 10000,
                       n.thin = 50, 
                       n.chains = 3)
   
@@ -487,8 +491,6 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3_sp_subset.rd
   
 }
 
-ppc_ms_out_3 <- ppcOcc(out_ms_3, 'chi-squared', group = 1)
-
 summary(ppc_ms_out_3)
 
 
@@ -496,12 +498,6 @@ summary(ppc_ms_out_3)
 ## Model 3b ----------------------------------------------------------------
 
 # Run model 3b
-data_msom_f <- data_msom
-data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "baiama"] <- 1
-data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "lalehun"] <- 2
-data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "lambayama"] <- 3
-data_msom_f$occ.covs$village[data_msom_f$occ.covs$village == "seilama"] <- 4
-data_msom_f$occ.covs$village <- as.numeric(data_msom_f$occ.covs$village)
 
 if(!file.exists(here("data", "observed_model_output", "model_3b_sp_subset.rds"))) {
   
@@ -596,8 +592,6 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rd
 }
 
 summary(ppc_ms_out_4)
-
-predict(out_ms_4)
 
 all_species <- tibble(model = c("out_ms_int", "out_ms_1", "out_ms_2", "out_ms_3", "out_ms_3b", "out_ms_4"),
                       waic = c(5666, 5297, 5291, 5289, 5056, 5215),
