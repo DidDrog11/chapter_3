@@ -503,7 +503,7 @@ if(!file.exists(here("data", "observed_model_output", "model_3b_sp_subset.rds"))
   
   out_ms_3b <- msPGOcc(occ.formula = occ_ms_formula_3b, 
                        det.formula = det_ms_formula_3b, 
-                       data = data_msom_f, 
+                       data = data_msom, 
                        inits = ms_inits, 
                        n.samples = 30000, 
                        priors = ms_priors, 
@@ -541,8 +541,97 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3b_sp_subset.r
 
 summary(ppc_ms_out_3b)
 
+## Model 3c ----------------------------------------------------------------
+
+# Run model 3c
+
+if(!file.exists(here("data", "observed_model_output", "model_3c_sp_subset.rds"))) {
+  
+  out_ms_3c <- msPGOcc(occ.formula = occ_ms_formula_3c, 
+                       det.formula = det_ms_formula_3c, 
+                       data = data_msom, 
+                       inits = ms_inits, 
+                       n.samples = 30000, 
+                       priors = ms_priors, 
+                       n.omp.threads = 1, 
+                       verbose = TRUE, 
+                       n.report = 6000, 
+                       n.burn = 10000,
+                       n.thin = 50, 
+                       n.chains = 3)
+  
+  write_rds(out_ms_3c, here("data", "observed_model_output", "model_3c_sp_subset.rds"))
+  
+} else {
+  
+  out_ms_3c <- read_rds(here("data", "observed_model_output", "model_3c_sp_subset.rds"))
+  
+}
+
+summary(out_ms_3c, level = "both")
+
+waicOcc(out_ms_3c)
 
 
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3c_sp_subset.rds"))) {
+  
+  ppc_ms_out_3c <- ppcOcc(out_ms_3c, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_3c, here("data", "observed_model_output", "ppc_ms_out_3c_sp_subset.rds"))
+  
+} else {
+  
+  ppc_ms_out_3c <- read_rds(here("data", "observed_model_output", "ppc_ms_out_3c_sp_subset.rds"))
+  
+}
+
+summary(ppc_ms_out_3c)
+
+## Model 3d ----------------------------------------------------------------
+
+# Run model 3d
+
+if(!file.exists(here("data", "observed_model_output", "model_3d_sp_subset.rds"))) {
+  
+  out_ms_3d <- msPGOcc(occ.formula = occ_ms_formula_3d, 
+                       det.formula = det_ms_formula_3d, 
+                       data = data_msom, 
+                       inits = ms_inits, 
+                       n.samples = 30000, 
+                       priors = ms_priors, 
+                       n.omp.threads = 1, 
+                       verbose = TRUE, 
+                       n.report = 6000, 
+                       n.burn = 10000,
+                       n.thin = 50, 
+                       n.chains = 3)
+  
+  write_rds(out_ms_3d, here("data", "observed_model_output", "model_3d_sp_subset.rds"))
+  
+} else {
+  
+  out_ms_3d <- read_rds(here("data", "observed_model_output", "model_3d_sp_subset.rds"))
+  
+}
+
+summary(out_ms_3d, level = "both")
+
+waicOcc(out_ms_3d)
+
+
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3d_sp_subset.rds"))) {
+  
+  ppc_ms_out_3d <- ppcOcc(out_ms_3d, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_3d, here("data", "observed_model_output", "ppc_ms_out_3d_sp_subset.rds"))
+  
+} else {
+  
+  ppc_ms_out_3d <- read_rds(here("data", "observed_model_output", "ppc_ms_out_3d_sp_subset.rds"))
+  
+}
+
+summary(ppc_ms_out_3d)
 
 ## Model 4 (Spatial) -------------------------------------------------------
 
@@ -593,13 +682,102 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rd
 
 summary(ppc_ms_out_4)
 
-all_species <- tibble(model = c("out_ms_int", "out_ms_1", "out_ms_2", "out_ms_3", "out_ms_3b", "out_ms_4"),
-                      waic = c(5666, 5297, 5291, 5289, 5056, 5215),
-                      com_bpc = c(0.63, .61, 0.61, 0.59, 0.27, 0.60),
-                      max_bpc = c(0.87, 0.92, 0.93, 0.91, 0.55, 0.93),
-                      min_bpc = c(0.19, 0.15, 0.16, 0.12, 0, 0.17))
+all_species <- tibble(model = c("out_ms_int", "out_ms_1", "out_ms_2", "out_ms_3",
+                                "out_ms_3b", "out_ms_3c", "out_ms_3d", "out_ms_4"),
+                      terms = as.character(c(occ_ms_formula_int, occ_ms_formula_1, occ_ms_formula_2, occ_ms_formula_3,
+                                occ_ms_formula_3b, occ_ms_formula_3c, occ_ms_formula_3d, occ_ms_formula_4)),
+                      waic = c(4150, 3841, 3841, 3942, 4008, 3951, 3890, 3831),
+                      com_bpc = c(0.56, .61, 0.48, 0.51, 0.53, 0.52, 0.51, 0.48),
+                      max_bpc = c(0.8, 0.92, 0.72, 0.77, 0.78, 0.77, 0.74, 0.7),
+                      min_bpc = c(0.18, 0.15, 0.13, 0.11, 0.1, 0.11, 0.13, 0.14))
 
 
+
+# Interpretation ----------------------------------------------------------
+# Probability of occurrence
+
+d0 <- as.data.frame.table(out_ms_4$psi.samples)
+d1 <- d0 %>%
+  mutate(Site = as.integer(Var3),
+         Species = factor(Var2, labels = sp_codes)) %>%
+  group_by(Site, Species) %>%
+  summarise(Mean_psi = mean(Freq),
+            SD_psi = SD(Freq))
+
+plot_m4 <- d1 %>%
+  left_join(raw_occ, by = c("Site" = "site_code")) %>%
+  mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village"), 
+                          labels = c("Forest", "Agriculture", "Village")),
+         Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
+                          levels = c("Praomys spp", "Crocidura spp", "Lophuromys spp",
+                                     "Mus minutoides", "Mastomys spp", "Rattus spp",
+                                     "Mus musculus")),
+         village = str_to_sentence(village),
+         peri_urban = case_when(village == "Lambayama" ~ "Peri-Urban",
+                                TRUE ~ "Rural"))
+
+plot_m4 %>%
+  ggplot() +
+  geom_boxplot(aes(y = Mean_psi, x = landuse)) + 
+  facet_wrap(~ Species, nrow = 1) +
+  theme_bw() +
+  labs(y = "Probability of occurrence",
+       x = element_blank())
+
+plot_m4 %>%
+  ggplot() +
+  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = village)) + 
+  facet_wrap(~ Species, nrow = 1) +
+  theme_bw() +
+  labs(y = "Probability of occurrence",
+       x = element_blank(),
+       fill = "Village")
+
+plot_m4 %>%
+  ggplot() +
+  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = peri_urban)) + 
+  facet_wrap(~ Species, nrow = 1) +
+  theme_bw() +
+  labs(y = "Probability of occurrence",
+       x = element_blank(),
+       fill = "Urbanisation")
+
+# Probability of detection
+
+d2 <- as.data.frame.table(out_ms_4$psi.samples)
+d3 <- d0 %>%
+  mutate(Site = as.integer(Var3),
+         Species = factor(Var2, labels = sp_codes)) %>%
+  group_by(Site, Species) %>%
+  summarise(Mean_psi = mean(Freq),
+            SD_psi = SD(Freq))
+
+plot_m4 <- d1 %>%
+  left_join(raw_occ, by = c("Site" = "site_code")) %>%
+  mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village"), 
+                          labels = c("Forest", "Agriculture", "Village")),
+         Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
+                          levels = c("Praomys spp", "Crocidura spp", "Lophuromys spp",
+                                     "Mus minutoides", "Mastomys spp", "Rattus spp",
+                                     "Mus musculus")),
+         village = str_to_sentence(village))
+
+plot_m4 %>%
+  ggplot() +
+  geom_boxplot(aes(y = Mean_psi, x = landuse)) + 
+  facet_wrap(~ Species, nrow = 1) +
+  theme_bw() +
+  labs(y = "Probability of occurrence",
+       x = element_blank())
+
+plot_m4 %>%
+  ggplot() +
+  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = village)) + 
+  facet_wrap(~ Species, nrow = 1) +
+  theme_bw() +
+  labs(y = "Probability of occurrence",
+       x = element_blank(),
+       fill = "Village")
 # Predictions -------------------------------------------------------------
 
 
