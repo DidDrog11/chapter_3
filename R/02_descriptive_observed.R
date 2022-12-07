@@ -267,6 +267,34 @@ table_1b <- left_join(species_trap_success_village, species_trap_success_rate, b
 
 write_rds(table_1b, here("output", "table_1b.rds"))
 
+# Table 1b as plot --------------------------------------------------------
+
+fig_2_df <- detections %>%
+  left_join(sites,
+            by = c("village", "visit", "grid_number", "trap_id", "site_id", "date_set")) %>%
+  group_by(landuse, village, clean_names) %>%
+  summarise(n_detected = n()) %>%
+  left_join(trap_success_rate_df %>%
+              select(-trap_success), by = c("village", "landuse")) %>%
+  rowwise() %>%
+  mutate(detection_rate = n_detected/tn * 1000,
+         clean_names = str_to_sentence(str_replace(clean_names, "_", " ")),
+         village = factor(str_to_sentence(village), levels = c("Baiama", "Lalehun", "Lambayama", "Seilama")),
+         landuse = factor(str_to_sentence(landuse), levels = c("Forest", "Agriculture", "Village")))
+
+fig_2 <- fig_2_df %>%
+  ggplot(aes(x = village, y = detection_rate, fill = landuse, label = n_detected)) +
+  geom_col(position = position_dodge2(preserve = "single", width = 0.7)) +
+  geom_text(size = 3, position = position_dodge2(preserve = "single", width = 0.8)) +
+  scale_y_continuous(breaks = scales::pretty_breaks()) +
+  scale_fill_manual(values = landuse_palette) +
+  facet_wrap(~ clean_names, scales = "free_y") +
+  labs(x = element_blank(),
+       y = "Detection rate per 1,000 trap nights",
+       fill = "Landuse") +
+  theme_bw()
+
+save_plot(plot = fig_2, filename = here("output", "Figure_2.png"), base_width = 13, base_height = 7)
 
 # Species diversity -------------------------------------------------------
 

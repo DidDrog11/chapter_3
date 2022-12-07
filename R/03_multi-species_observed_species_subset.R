@@ -717,31 +717,68 @@ plot_m4 <- d1 %>%
          peri_urban = case_when(village == "Lambayama" ~ "Peri-Urban",
                                 TRUE ~ "Rural"))
 
-plot_m4 %>%
+landuse_plot <- plot_m4 %>%
   ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = landuse)) + 
+  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = landuse), notch = FALSE) + 
   facet_wrap(~ Species, nrow = 1) +
+  scale_fill_manual(values = landuse_palette) +
   theme_bw() +
-  labs(y = "Probability of occurrence",
-       x = element_blank())
+  labs(y = "Probability of occurrence (ψ)",
+       x = element_blank(),
+       fill = element_blank())
 
-plot_m4 %>%
+save_plot(plot = landuse_plot, filename = here("output", "Figure_3.png"), base_width = 14)
+
+summaries <- plot_m4 %>%
+  group_by(Species, village, landuse) %>%
+  summarise(median_psi = median(Mean_psi),
+            IQR_lower = IQR(Mean_psi))
+
+landuse_by_village <- plot_m4 %>%
   ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = village)) + 
-  facet_wrap(~ Species, nrow = 1) +
+  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = village, colour = village)) + 
+  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = village), outlier.color = NA) + 
+  facet_wrap(~ Species, nrow = 2) +
+  scale_fill_manual(values = village_palette) +
+  scale_colour_manual(values = village_palette) +
   theme_bw() +
+  guides(colour = "none") +
+  labs(y = "Probability of occurrence (ψ)",
+       x = element_blank(),
+       fill = "Village",
+       colour = element_blank())
+
+village_by_landuse <- plot_m4 %>%
+  ggplot() +
+  geom_boxplot(aes(y = Mean_psi, x = village, fill = landuse, colour = landuse)) + 
+  geom_boxplot(aes(y = Mean_psi, x = village, fill = landuse), outlier.color = NA) + 
+  facet_wrap(~ Species, nrow = 2) +
+  scale_fill_manual(values = landuse_palette) +
+  scale_colour_manual(values = landuse_palette) +
+  theme_bw() +
+  guides(colour = "none") +
   labs(y = "Probability of occurrence",
        x = element_blank(),
-       fill = "Village")
+       fill = "Landuse",
+       colour = element_blank())
 
-plot_m4 %>%
+urbanisation_by_landuse <- plot_m4 %>%
   ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = peri_urban)) + 
-  facet_wrap(~ Species, nrow = 1) +
+  geom_boxplot(aes(y = Mean_psi, x = peri_urban, fill = landuse, colour = landuse)) + 
+  geom_boxplot(aes(y = Mean_psi, x = peri_urban, fill = landuse), outlier.color = NA) + 
+  facet_wrap(~ Species, nrow = 2) +
+  scale_fill_manual(values = landuse_palette) +
+  scale_colour_manual(values = landuse_palette) +
   theme_bw() +
+  guides(colour = "none") +
   labs(y = "Probability of occurrence",
        x = element_blank(),
-       fill = "Urbanisation")
+       fill = "Landuse",
+       colour = element_blank())
+
+save_plot(plot = landuse_by_village, filename = here("output", "Figure_4a.png"), base_width = 10, base_height = 8)
+save_plot(plot = village_by_landuse, filename = here("output", "Figure_4b.png"), base_width = 12, base_height = 8)
+save_plot(plot = urbanisation_by_landuse, filename = here("output", "Figure_4c.png"), base_width = 8, base_height = 8)
 
 # Probability of detection
 

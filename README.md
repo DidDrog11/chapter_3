@@ -40,10 +40,14 @@ This chapter will describe the results of the rodent trapping study that was imp
   - [ ] Trial of rarely detected species as grouped by other
   - [x] Run a spatial occupancy model
   - [x] Remove network section which will be moved to chapter 4
-  - [ ] First component of analysis is species occurrence across landuse gradient
-  - [ ] Second component is species occurrence patterns across landuse gradient by urban scale
+  - [x] First component of analysis is species occurrence across landuse gradient
+  - [x] Second component is species occurrence patterns across landuse gradient by urban scale
   - [ ] Update introduction
   - [ ] Trapping protocol as supplementary, more specific detail into the methods for data collection  section
-  - [ ] Consistent definition of village site, grid site and landuse site
+  - [x] Consistent definition of village site, grid site and landuse site
   - [x] Add species accumulation curves by village and by landuse setting
   - [ ] Explore other options for co-occurrence
+  
+### Discussion points
+
+  - [ ] 

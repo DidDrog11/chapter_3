@@ -27,6 +27,7 @@ library(flextable)
 library(here)
 library(tidyverse)
 
+set_flextable_defaults(fonts_ignore=TRUE)
 ```
 
 ### Author list
@@ -121,7 +122,8 @@ Minimally informative priors were specified for community and species level coef
 We included covariates in the model based on a pre-specified Directed Acyclic Graph and after assessing for co-linearity (defined as strong correlation >0.8) among variables (Supplementary Figure 2.). Continuous variables were standardised by scaling to values between 0-1. The fully specified model is defined in Equation 6 and 7.
 
 $$
-\text{Probability of occurrence} \sim \text{Land use type} + \text{Village} + \text{scale}(\text{Distance to permanent structure}) +\\ \text{scale}(\text{Distance to village centre}) + \text{scale}(\text{Elevation}) \tag{8}
+\text{Probability of occurrence} \sim \text{Land use type} + \text{Village} + \text{scale}(\text{Distance to permanent structure}) + \\
+\text{scale}(\text{Distance to village centre}) + \text{scale}(\text{Elevation}) \tag{8}
 $$
 
 $$
@@ -169,37 +171,44 @@ table_1a %>%
 
 ```
 
-The most commonly detected rodent species across all village study sites and land use types was *M. natalensis* (N = 144, 19.2%), followed by *R. rattus* (N = 90, 12%), *M. musculus* (N = 86, 11.5%) and *Lophuromys rostratus* (N = 74, 9.9%) (Supplementary Material 5.). *M. natalensis* and *R. rattus* were detected in all village study sites *M. natalensis* was not detected in forest land use types. Conversely, *Hybomys planifrons* and *Gerbilliscus kempii* were only detected in a single village study site, with *H. planifrons* detected in forest land use and *G. kempii* in agricultural land use types. The invasive rodent species *M. musculus* was only detected in Lambayama and Seilama village study sites. There was little observed variation in species richness by season. The prevalence of a species (measured as the number of positive detections for a constant trapping effort), was reduced for most species during the rainy season, except for *M. natalensis* which was more often detected in village land use types during the rainy season compared to the dry season (Supplementary Material 6.).
+The most commonly detected rodent species across all village study sites and land use types was *M. natalensis* (N = 144, 19.2%), followed by *R. rattus* (N = 90, 12%), *M. musculus* (N = 86, 11.5%) and *Lophuromys rostratus* (N = 74, 9.9%) (Supplementary Material 5.). *M. natalensis* and *R. rattus* were detected in all village study sites *M. natalensis* was not detected in forest land use types (Figure 2.). Conversely, *Hybomys planifrons* and *Gerbilliscus kempii* were only detected in a single village study site, with *H. planifrons* detected in forest land use and *G. kempii* in agricultural land use types. The invasive rodent species *M. musculus* was only detected in Lambayama and Seilama village study sites within village land use types. The detection rate (the number of individuals detected per 1000 TN) varied by species, land use type and village study site. The greatest rate of detection was for *M. musculus* in the Lambayama village study site, with the other commensal species *M. natalensis* and *R. rattus* high across multiple village study sites within village land use types. *Praomys spp.* and *Crocidura spp.* had the highest detection rates in forest and agricultural land use types.  
 
-```{r table-1b, layout = "l-page", tab.cap = "Table 1b. The location of detection of individual small mammals by species. Values in paranthesis are the TS % for that species in the village and landuse for the associated traps."}
+```{r detection-rate, layout = "l-page", fig.cap = "Figure 2. Detection rate of rodent species in land use type. The detection rate per 1000 TN and the number of detections of each rodent species in the three land use types across all four village study sites are shown. The scale for detection rate per 1000 TN on the y-axis varies by species. The number on the column is the number of individuals trapped within this setting. The greater rate if detection of *M. musculus* within village land use types are clearly shown with the other commensal rodent species being detected in more frequently in non-village land use types and accross more village study sites. Rodent species that were not detected in village land use types were generally less frequently detected throughout the study (i.e. *Lemniscomys spp.*, *Malacomys spp.* and *M. minutoides*)", out.width = "100%"}
 
-table_1b <- readRDS(here("output", "table_1b.rds"))
-table_1b %>%
-  as_grouped_data(groups = "clean_names") %>%
-  flextable() %>%
-  autofit() %>%
-  set_header_labels(clean_names = "Species",
-                    village = "Village") %>%
-  fit_to_width(6)
+knitr::include_graphics(here("output", "Figure_2.png"))
 
 ```
+
+There was little observed variation in species richness by season. The prevalence of a species (measured as the number of positive detections for a constant trapping effort), was reduced for most species during the rainy season, except for *M. natalensis* which was more often detected in village land use types during the rainy season compared to the dry season (Supplementary Material 6.).
 
 
 ## Estimating the effect of land use on species occurrence and richness
 
-We found three patterns of probability of occurrence for included species across the land use types (Figure 3.). *Praomys spp.* had higher probability of occurrence in forest land use with lower probabilities in agricultural and village land use types. *Crocidura sp.*, *Lophuromys sp.* and *Mus minutoides* had highest probabilities of occurrence in agricultural land use with lower probabilities of occurrence in forest and village land use. Finally, *M. natalensis*, *R. rattus* and *M. musculus* had highest probabilities of occurrence in village land use with lower occurrence probabilities in agricultural and village land use types. No species showed high probability of occurrence across all land use types, consistent with species being adapted to distinct ecological niches.
+Posterior samples were drawn from the most parsimonious Bayesian occupancy model incorporating spatial autocorrelation (Supplementary Material 7.). Occurrence terms include land use type, village study site as a fixed effect, and terms for distance to the nearest permanent structure and elevation. Detection terms include precipitation, trapping effort (TN) and the moon fraction. We found three patterns of probability of occurrence ($\psi$) within a trapping grid cell for the seven included species with more than 10 detection across the different land use types (Figure 3.). First, *Praomys spp.* had higher probability of occurrence in forest land use with lower probabilities in agricultural and village land use types. Second, *Crocidura sp.*, *Lophuromys sp.* and *Mus minutoides* had highest probabilities of occurrence in agricultural land use with lower probabilities of occurrence in forest and village land use. Third, *M. natalensis*, *R. rattus* and *M. musculus* had highest probabilities of occurrence in village land use with lower occurrence probabilities in agricultural and village land use types. No species showed high probability of occurrence across all land use types, consistent with species being adapted to distinct ecological niches.
 
-```{r response-landuse, layout = "l-page", fig.cap = "Figure 3. Probability of occurrence across a land use gradient. The probability of occurrence (psi), within different land use types, for the seven small mammal species with more than 12 detections is shown. Colours signify the village site to highlight the observed heterogeneity between village sites in the occurrence of these species."}
+```{r response-landuse, layout = "l-page", fig.cap = "Figure 3. Probability of species occurrence across a land use gradient. The probability of occurrence ($\\psi$), within different land use types, for the seven small mammal species with more than 10 detections is shown. The solid black horizontal line within the boxplot is the median values of the samples from the posterior distribution of psi. The hinges represent the 25th and 75th percentiles. Black points represent outliers to the box plots.", out.width = '100%'}
 
-knitr::include_graphics(here("output", "model_1_plot_sp_subset.png"))
+knitr::include_graphics(here("output", "Figure_3.png"))
 
 ```
 
-The probability of occurrence of some species within the same land use types differed importantly by study village. For example, the mean probability of occurrence of *M. musculus* within a trapping grid in village settings was 0.59 (Inter-Quartile Range (IQR) = 0.48-0.69) in Lambayama but less than 0.02 (IQR = 0.003-0.04) in all other villages. The probability of occurrence of *M. natalensis* showed an opposite pattern with higher probability of occurrence in village settings of >0.15 (IQR = 0.13-0.28) except in Lambayama where it was 0.05 (IQR = 0.03-0.06). Other species, such as, *Crocidura spp.* and *R. rattus* had more similar occurrence probabilities across all four villages within village and agricultural land use settings. *Malacomys spp* had low occurrence probabilities outside of forest land use settings and *Mus minutoides* was only found to occur in forest and agricultural settings.
+The probability of occurrence within a trapping grid cell of some species within the same land use types differed by village study site as suggested by the outliers in Figure 3. For example, the probability of occurrence of *Praomys spp.* at trapping grid cells within forest (median = 0.64, Inter-Quartile Range (IQR) = 0.001) and agricultural (median = 0.64, IQR = 0.04) land use types is greater at Seilama village study site than at the same land use types in other village study sites (median < 0.13). For the commensal rodent species *M. natalensis* and *R. rattus* probability of occurrence followed a consistent pattern of higher probability of occurrence within village land use than compared to agricultural land use within village study sites, although probabilities were lower for the Lambayama village study site. For *M. musculus* the probability of occurrence was generally low in all land use types except village land use at the Lambayama village study site. The occurrence probabilities for these three commensal species (*M. natalensis*, *R. rattus* and *M. musculus*) suggest that competition may be reducing the occurrence of *M. natalensis* and *R. rattus* in the presence of *M. musculus* which in it's absence have high occurrence probabilities in village land use types.
+
+**I am not sure the best representation for this section. Does it work better as land use type split by village for each species (A) or by village study site split by land use type for each species (B)? An alternative representation would be splitting by urbanisation based on human population density at the sites which splits it into Lambayama as the peri-urban and all others as rural (C). All convey the same data it's just trying to decide which is a clearer representation of the message.**
+
+```{r within-village, layout = "l-page", fig.cap = "Figure 4. Probability of species occurrence across a land use gradient by village study site. The probability of occurrence ($\\psi$), within different land use types, for the seven small mammal species with more than 10 detections is shown. The solid black horizontal line within the boxplot is the median values of the samples from the posterior distribution of psi. The hinges represent the 25th and 75th percentiles. Black points represent outliers to the box plots.", out.width = '100%'}
+
+knitr::include_graphics(here("output", "Figure_4a.png"))
+
+knitr::include_graphics(here("output", "Figure_4b.png"))
+
+knitr::include_graphics(here("output", "Figure_4c.png"))
+
+```
 
 ## Co-occurrence of species (**Needs more work**)
 
-To further explore this observed patters we prodcued co-occurrence models. These reinfored the finding that species co-occurrence differed between species pairs. The probability of occurrence of *M. natalensis* in the absence of *M. musculus* was 0.28, the presence of *M. musculus* at a nearby trapping grid reduced this to 0.16. This antagonism was greater than that observed for another invasive rodent species *R. rattus* where probability of occurrence of *M. natalensis* in the absence of *R. rattus* was 0.24, the presence of *R. rattus* reduced this to 0.18. These findings further suggest a strong displacement effect of *M. musculus* which is not seen with *R. rattus* at our study sites.
+We found that species co-occurrence differed between species pairs. The probability of occurrence of *M. natalensis* in the absence of *M. musculus* was 0.28, the presence of *M. musculus* at a nearby trapping grid reduced this to 0.16. This antagonism was greater than that observed for another invasive rodent species *R. rattus* where probability of occurrence of *M. natalensis* in the absence of *R. rattus* was 0.24, the presence of *R. rattus* reduced this to 0.18. These findings further suggest a strong displacement effect of *M. musculus* which is not seen with *R. rattus* at our study sites.
 
 # Discussion (**Bullet points for now**)
 
