@@ -634,6 +634,7 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3d_sp_subset.r
 summary(ppc_ms_out_3d)
 
 ## Model 4 (Spatial) -------------------------------------------------------
+# Time to run ~ 26 minutes
 
 if(!file.exists(here("data", "observed_model_output", "model_4_sp_subset.rds"))) {
   

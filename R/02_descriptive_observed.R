@@ -50,6 +50,22 @@ median_number_trap_visit <- tn %>%
             tn_min = min(tn),
             tn_max = max(tn))
 
+# Raw area of traps -------------------------------------------------------
+trap_locations <- sites %>%
+  select(village, grid_number, visit, trap_id, trap_easting, trap_northing) %>%
+  st_as_sf(coords = c("trap_easting", "trap_northing"), crs = SL_UTM) %>%
+  group_by(village, grid_number, visit) %>%
+  summarise()
+
+trap_areas <- trap_locations %>%
+  st_convex_hull()
+
+trap_areas$area <- st_area(trap_areas$geometry)
+
+tibble(trap_areas %>%
+  filter(grid_number != 7)) %>% 
+  summarise(mean(area))
+
 # Description trapping locations ------------------------------------------
 
 land_use_type <- sites %>%
