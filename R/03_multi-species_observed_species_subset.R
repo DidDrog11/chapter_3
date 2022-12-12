@@ -16,6 +16,8 @@ sites <- observed_data$sites_grids$select_site %>%
 
 trap_nights <- read_rds(here("data", "observed_data", "trap_nights.rds"))
 
+data_for_4 <- write_rds(x = list(detections = detections, sites = sites), here("data", "data_for_export", "chapter_4_extract.rds"))
+
 # Produce y --------------------------------------
 
 # produce a long format of detections with a single record per site, visit  #
@@ -274,7 +276,7 @@ det_ms_formula_3d <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 4 (spatial)
 # Occurrence
-occ_ms_formula_4 <- ~ landuse + village + scale(distance_building) + scale(elevation)
+occ_ms_formula_4 <- ~ landuse  + village + scale(distance_building) + scale(elevation)
 # Detection
 det_ms_formula_4 <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
@@ -634,7 +636,7 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3d_sp_subset.r
 summary(ppc_ms_out_3d)
 
 ## Model 4 (Spatial) -------------------------------------------------------
-# Time to run ~ 26 minutes
+# Time to run ~ 36 minutes
 
 if(!file.exists(here("data", "observed_model_output", "model_4_sp_subset.rds"))) {
   
@@ -651,13 +653,13 @@ if(!file.exists(here("data", "observed_model_output", "model_4_sp_subset.rds")))
                         n.omp.threads = 1, 
                         verbose = TRUE, 
                         NNGP = TRUE,
-                        n.report = 100, 
-                        n.burn = 2000,
-                        n.thin = 20, 
+                        n.report = 50, 
                         n.chains = 3,
                         tuning = list(phi = 0.5))
   
   write_rds(out_ms_4, here("data", "observed_model_output", "model_4_sp_subset.rds"))
+  
+  gc()
   
 } else {
   
@@ -670,6 +672,8 @@ summary(out_ms_4, level = "both")
 waicOcc(out_ms_4)
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rds"))) {
+  
+  gc()
   
   ppc_ms_out_4 <- ppcOcc(out_ms_4, 'chi-squared', group = 1)
   
@@ -686,15 +690,47 @@ summary(ppc_ms_out_4)
 all_species <- tibble(model = c("out_ms_int", "out_ms_1", "out_ms_2", "out_ms_3",
                                 "out_ms_3b", "out_ms_3c", "out_ms_3d", "out_ms_4"),
                       terms = as.character(c(occ_ms_formula_int, occ_ms_formula_1, occ_ms_formula_2, occ_ms_formula_3,
-                                occ_ms_formula_3b, occ_ms_formula_3c, occ_ms_formula_3d, occ_ms_formula_4)),
+                                             occ_ms_formula_3b, occ_ms_formula_3c, occ_ms_formula_3d, occ_ms_formula_4)),
                       waic = c(4150, 3841, 3841, 3942, 4008, 3951, 3890, 3831),
                       com_bpc = c(0.56, .61, 0.48, 0.51, 0.53, 0.52, 0.51, 0.48),
                       max_bpc = c(0.8, 0.92, 0.72, 0.77, 0.78, 0.77, 0.74, 0.7),
-                      min_bpc = c(0.18, 0.15, 0.13, 0.11, 0.1, 0.11, 0.13, 0.14))
+                      min_bpc = c(0.18, 0.15, 0.13, 0.11, 0.1, 0.11, 0.13, 0.13))
 
 
 
 # Interpretation ----------------------------------------------------------
+
+# Check mixing
+plot(out_ms_4$beta.samples, density = FALSE)
+
+plot(out_ms_4$alpha.samples, density = FALSE)
+
+# Posterior predictive checks
+# Bayesian p-value around 0.5 indicates adequate model fit, with values less than 0.1 or greater than 0.9 indicating poor fit.
+summary(ppc_ms_out_4)
+
+ppc.df <- tibble(ppv = c(rep(1:1200, times = 2)),
+                 "crocidura" = c(ppc_ms_out_4$fit.y[ ,1], ppc_ms_out_4$fit.y.rep[, 1]),
+                 "lophuromys" = c(ppc_ms_out_4$fit.y[ ,2], ppc_ms_out_4$fit.y.rep[, 2]),
+                 "mastomys" = c(ppc_ms_out_4$fit.y[ ,3], ppc_ms_out_4$fit.y.rep[, 3]),
+                 "minutoides" = c(ppc_ms_out_4$fit.y[ ,4], ppc_ms_out_4$fit.y.rep[, 4]),
+                 "musculus" = c(ppc_ms_out_4$fit.y[ ,5], ppc_ms_out_4$fit.y.rep[, 5]),
+                 "praomys" = c(ppc_ms_out_4$fit.y[ ,6], ppc_ms_out_4$fit.y.rep[, 6]),
+                 "rattus" = c(ppc_ms_out_4$fit.y[ ,7], ppc_ms_out_4$fit.y.rep[, 7]),
+                 fit = c(rep("True", times = 1200), rep("Fitted", times = 1200))) %>%
+  arrange(ppv) %>%
+  pivot_longer(cols = c("crocidura", "lophuromys", "mastomys", "minutoides", "musculus", "praomys", "rattus"), names_to = "Species",
+               values_to = "Fitted_value") %>%
+  pivot_wider(names_from = fit, values_from = "Fitted_value") %>%
+  mutate(discrepancy = case_when(True > Fitted ~ "True > Fit",
+                                 TRUE ~ "Fit > True"))
+
+ggplot(ppc.df, aes(x = True, y = Fitted, colour = discrepancy)) +
+  geom_point() +
+  geom_abline() +
+  facet_wrap(~ Species, scales = "free") +
+  theme_bw()
+
 # Probability of occurrence
 
 d0 <- as.data.frame.table(out_ms_4$psi.samples)
@@ -704,6 +740,19 @@ d1 <- d0 %>%
   group_by(Site, Species) %>%
   summarise(Mean_psi = mean(Freq),
             SD_psi = SD(Freq))
+
+check_model <- left_join(d1, y_long %>%
+                           rename(Site = site_code,
+                                  Species = species) %>%
+                           group_by(Site, Species) %>%
+                           summarise(observed = sum(count)),
+                         by = c("Site", "Species")) %>%
+  mutate(observed_bin = case_when(observed > 0 ~ 1,
+                                  is.na(observed) ~ 0))
+
+visualise_check <- ggplot(check_model) +
+  geom_point(aes(x = Mean_psi, y = observed_bin)) +
+  facet_wrap(~ Species, ncol = 1)
 
 plot_m4 <- d1 %>%
   left_join(raw_occ, by = c("Site" = "site_code")) %>%
@@ -790,32 +839,6 @@ d3 <- d0 %>%
   summarise(Mean_psi = mean(Freq),
             SD_psi = SD(Freq))
 
-plot_m4 <- d1 %>%
-  left_join(raw_occ, by = c("Site" = "site_code")) %>%
-  mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village"), 
-                          labels = c("Forest", "Agriculture", "Village")),
-         Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
-                          levels = c("Praomys spp", "Crocidura spp", "Lophuromys spp",
-                                     "Mus minutoides", "Mastomys spp", "Rattus spp",
-                                     "Mus musculus")),
-         village = str_to_sentence(village))
-
-plot_m4 %>%
-  ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = landuse)) + 
-  facet_wrap(~ Species, nrow = 1) +
-  theme_bw() +
-  labs(y = "Probability of occurrence",
-       x = element_blank())
-
-plot_m4 %>%
-  ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = village)) + 
-  facet_wrap(~ Species, nrow = 1) +
-  theme_bw() +
-  labs(y = "Probability of occurrence",
-       x = element_blank(),
-       fill = "Village")
 # Predictions -------------------------------------------------------------
 
 
