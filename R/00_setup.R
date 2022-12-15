@@ -21,6 +21,9 @@ pkgs =
     "osmdata",
     "RColorBrewer",
     "RhpcBLASctl",
+    "rmapshaper",
+    "rnaturalearth",
+    "rnaturalearthdata",
     "rosm",
     "sf",
     "spOccupancy",
@@ -44,3 +47,5 @@ names(village_palette) <-  c("Lalehun", "Seilama", "Lambayama", "Baiama")
 
 landuse_palette <- c("#00913a", "#FEC44F", "#a13b9e")
 names(landuse_palette) <- c("Forest", "Agriculture", "Village")
+
+season <- tibble(visit = 1:8, season = c(rep("Dry", 2), rep("Rainy", 2), rep("Dry", 2),rep("Rainy", 2)))

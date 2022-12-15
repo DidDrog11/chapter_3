@@ -5,13 +5,10 @@ source(here::here("R", "00_setup.R"))
 source(here("R", "01_load_data.R"))
 
 # Produce descriptive tables
-source(here("R", "descriptive.R"))
-
-# Produce network analysis
-source(here("R", "network.R"))
+source(here("R", "02_descriptive_observed.R"))
 
 # Produce multi-species occupancy models
-source(here("R", "multi_species_models.R"))
+source(here("R", "03_multi-observed_species_subset.R"))
 
-# Produce species distributions
-source(here("R", "species_distributions.R"))
+# Produce region and locations map
+

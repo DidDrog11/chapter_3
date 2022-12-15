@@ -21,7 +21,6 @@ tn <- sites %>%
 # Allocate seasons to months
 season <- tibble(month = 1:12, season = c(rep("Dry", 4), rep("Rainy", 6), rep("Dry", 2)))
 
-
 grids <- list()
 
 for(i in 1:length(observed_data$sites_grids$grids_for_plotting)) {
@@ -125,39 +124,21 @@ osm_bbox <- lapply(X = grids_with_traps, function(X) {X %>% group_by(village) %>
 
 names(osm_bbox) <- c("baiama", "lalehun", "lambayama", "seilama")
 
-bg = lapply(X = osm_bbox, function(X) {osm.raster(extract_bbox(st_bbox(X)), zoomin = + 2)})
-bg = lapply(X = bg, function(X) {rast(X) %>%
-    project(y = SL_UTM)})
-
-grids_plot <- list()
-
-for(i in 1:length(grids_with_traps))  {
+if(!file.exists(here("data", "observed_data", "baiama_raster.tif"))) {
   
-  grids_plot[[i]] <- ggplot() + 
-    geom_spatraster_rgb(data = bg[[i]]) +
-    geom_sf(data = grids_with_traps[[i]] %>%
-              mutate(landuse = str_to_title(landuse)),
-            aes(fill = tn, colour = tn)) +
-    coord_sf(expand = FALSE) +
-    scale_colour_viridis_c(limits = c(0, 100)) +
-    scale_fill_viridis_c(limits = c(0, 100)) +
-    guides(colour = "none") +
-    facet_wrap(~ landuse) +
-    labs(fill = "Number Trap-Nights",
-         title = str_to_title(unique(grids_with_traps[[i]]$village))) +
-    theme_bw() +
-    theme(legend.position = "none") +
-    annotation_scale()
+  bg = lapply(X = osm_bbox, function(X) {osm.raster(extract_bbox(st_bbox(X)), zoomin = + 2)})
+  bg = lapply(X = bg, function(X) {rast(X) %>%
+      project(y = SL_UTM)})
   
+  writeRaster(bg$baiama, here("data", "observed_data", "baiama_raster.tif"), overwrite = TRUE)
+  writeRaster(bg$lalehun, here("data", "observed_data", "lalehun_raster.tif"), overwrite = TRUE)
+  writeRaster(bg$lambayama, here("data", "observed_data", "lambayama_raster.tif"), overwrite = TRUE)
+  writeRaster(bg$seilama, here("data", "observed_data", "seilama_raster.tif"), overwrite = TRUE)
 }
 
-save_plot(plot = grids_plot[[1]], filename = here("output", "baiama_grid_locations.png"))
-save_plot(plot = grids_plot[[2]], filename = here("output", "lalehun_grid_locations.png"))
-save_plot(plot = grids_plot[[3]], filename = here("output", "lambayama_grid_locations.png"))
-save_plot(plot = grids_plot[[4]], filename = here("output", "seilama_grid_locations.png"))
+fig_1_df <- grids_with_traps
 
-combined_grids <- plot_grid(plotlist = grids_plot, ncol = 1, rel_heights = c(1, 1.5, 1, 1))
-save_plot(plot = combined_grids, filename = here("output", "grid_locations.pdf"), base_height = 12)
+write_rds(fig_1_df, here("data", "observed_data", "fig_1_df.rds"))
 
 # Description rodents trapped ---------------------------------------------
 
