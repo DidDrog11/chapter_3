@@ -18,6 +18,11 @@ tn <- sites %>%
   group_by(village, visit) %>%
   summarise(tn = n() * 4)
 
+tn_village_landuse <- sites %>%
+  group_by(village, landuse, visit) %>%
+  mutate(tn = n() * 4) %>%
+  distinct(trap_id, village, visit, landuse, tn)
+
 # Allocate seasons to months
 season <- tibble(month = 1:12, season = c(rep("Dry", 4), rep("Rainy", 6), rep("Dry", 2)))
 
@@ -160,6 +165,9 @@ trap_success_rate_df <- detections %>%
 
 # Description trap rate by season ----------------------------------------------
 
+landuse_order <- c("village", "agriculture", "forest")
+names(landuse_order) <- c("Village", "Agriculture", "Forest")
+
 season_detection <- detections %>%
   mutate(month = month(date_set)) %>%
   left_join(tn) %>%
@@ -179,6 +187,47 @@ season_detection <- detections %>%
        y = "Trap rate (/100 TN)",
        x = "Season")
 
+season_detection_landuse <- detections %>%
+  mutate(month = month(date_set)) %>%
+  left_join(tn_village_landuse, by = c("trap_id", "village", "visit")) %>%
+  left_join(season) %>%
+  group_by(clean_names, village, landuse, tn, season) %>%
+  summarise(n = n(),
+            tn = unique(tn)) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(trap_rate = (n/tn)*100,
+         clean_names = str_to_sentence(str_replace(clean_names, "_", " ")),
+         landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order))) %>%
+  ggplot() +
+  geom_boxplot(aes(x = landuse, y = trap_rate, fill = season), position = position_dodge(preserve = "single")) +
+  facet_wrap(~ clean_names, scales = "free_y") +
+  theme_bw() +
+  labs(fill = element_blank(),
+       y = "Trap rate (/100 TN)",
+       x = "Landuse")
+
+mastomys_season_detection <- detections %>%
+  filter(clean_names == "mastomys_spp") %>%
+  mutate(month = month(date_set)) %>%
+  left_join(tn_village_landuse, by = c("trap_id", "village", "visit")) %>%
+  left_join(season) %>%
+  group_by(clean_names, village, landuse, tn, season) %>%
+  summarise(n = n(),
+            tn = unique(tn)) %>%
+  ungroup() %>%
+  rowwise() %>%
+  mutate(trap_rate = (n/tn)*100,
+         clean_names = str_to_sentence(str_replace(clean_names, "_", " ")),
+         landuse = factor(landuse, levels = landuse_order, labels = names(landuse_order))) %>%
+  ggplot() +
+  geom_boxplot(aes(x = landuse, y = trap_rate, fill = season), position = position_dodge(preserve = "single")) +
+  facet_wrap(~ village, scales = "free_y") +
+  theme_bw() +
+  labs(fill = element_blank(),
+       y = "Trap rate (/100 TN)",
+       x = "Landuse")
+
 # Description species trapped ---------------------------------------------
 
 species_trapped <- detections %>%
@@ -190,20 +239,20 @@ species_trapped <- detections %>%
   arrange(-N)
 
 species_order <- unique(str_to_sentence(str_replace_all(species_trapped$clean_names, "_", " ")))
-landuse_order <- c("village", "agriculture", "forest")
-names(landuse_order) <- c("Village", "Agriculture", "Forest")
 village_order <- c("baiama", "lalehun", "lambayama", "seilama")
 names(village_order) <- c("Baiama", "Lalehun", "Lambayama", "Seilama")
 
 species_trap_success_rate <- detections %>%
-  select(trap_id, clean_names) %>%
+  select(site_id, clean_names) %>%
+  group_by(site_id, clean_names) %>%
+  summarise(n = n()) %>%
   left_join(sites %>%
               tibble() %>%
-              select(trap_id, village, landuse),
-            by = "trap_id") %>%
+              select(site_id, village, landuse),
+            by = "site_id") %>%
   distinct() %>%
   group_by(clean_names, village, landuse) %>%
-  summarise(n = n()) %>%
+  summarise(n = sum(n)) %>%
   drop_na(clean_names) %>%
   left_join(., trap_success_rate_df %>%
               group_by(village, landuse) %>%
@@ -220,11 +269,11 @@ species_trap_success_rate <- detections %>%
   arrange(clean_names, village)
 
 species_trap_success_village <- detections %>%
-  select(rodent_id, trap_id, clean_names) %>%
+  select(rodent_id, site_id, clean_names) %>%
   left_join(sites %>%
               tibble() %>%
-              select(trap_id, village, landuse),
-            by = "trap_id") %>%
+              select(site_id, village, landuse),
+            by = "site_id") %>%
   distinct()  %>%
   group_by(clean_names, village, landuse) %>%
   summarise(n = n()) %>%
@@ -490,3 +539,35 @@ accumulation_plot <- ggplot(combined_accumulation) +
   theme_bw()
 
 save_plot(plot = accumulation_plot, base_width = 10, filename = here("output", "species_accumulation.pdf"))
+
+
+# Discussion description --------------------------------------------------
+# Trap success in buildings, village and other for comparison
+indoor_traps <- observed_data$sites_grids$select_site %>%
+  bind_rows() %>%
+  filter(site_habitat == "village_inside") %>%
+  select(site_id = unique_site, village, visit, trap_uid) %>%
+  mutate(tn = 4,
+         landuse = "village_inside") %>%
+  group_by(village, visit) %>%
+  mutate(tn = sum(tn))
+
+
+detections_visit_indoors <- detections %>%
+  group_by(site_id, visit, village, clean_names) %>%
+  summarise(n = n()) %>%
+  filter(site_id %in% indoor_traps$site_id) %>%
+  left_join(indoor_traps %>%
+              tibble() %>%
+              select(landuse, visit, village, tn) %>%
+              distinct(),
+            by = c("visit", "village")) %>%
+  drop_na(landuse) %>%
+  group_by(clean_names, village, visit, landuse) %>%
+  summarise(n = sum(n),
+            tn = unique(tn)) %>%
+  group_by(village, visit) %>%
+  summarise(n_all = sum(n),
+            tn = unique(tn))
+
+sum(detections_visit_indoors$n_all)/sum(detections_visit_indoors$tn)
