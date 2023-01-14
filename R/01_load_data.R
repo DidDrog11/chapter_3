@@ -5,11 +5,15 @@ source(here::here("R", "00_setup.R"))
 
 combined_data <- readRDS(gzcon(url("https://github.com/DidDrog11/rodent_trapping/raw/main/data/data_for_export/combined_data.rds")))
 
+#combined_data <- read_rds(here("data", "input", "combined_data_manual_download.rds"))
+
 write_rds(combined_data, here("data", "input", "combined_data.rds"))
 
 # Prepare data into sites and detections ----------------------------------
+# Currently sequence data is only available for a small subset of the total number of individuals, for now we will continue to use field id's
 
 detections <- combined_data$rodent_data %>%
+  mutate(clean_names = field_id) %>%
   filter(trap_uid %in% combined_data$trap_data$trap_uid) %>% # only keep rodents for sites with coordinates
   filter(!str_detect(rodent_uid, "BAM")) %>% # remove Bambawo
   drop_na(clean_names) %>% # remove individuals without a genus identification

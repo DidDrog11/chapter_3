@@ -1,3 +1,4 @@
+source(here::here("R", "00_setup.R"))
 
 # A map of Sierra Leone in Africa -----------------------------------------
 
@@ -25,8 +26,11 @@ africa_map <- ggplot() +
 sle_sf <- geodata::gadm(country = "SLE", level = 2, path = here("data", "geodata")) %>%
   st_as_sf()
 
+fig_1_palette <- c(village_palette, "#FFFFFF")
+names(fig_1_palette) <- c(names(village_palette)[1:4], "poi")
+
 poi <- tibble(name = c("Freetown", "Bo", "Kenema", "Baiama", "Lalehun", "Lambayama", "Seilama"),
-              cat = c("poi", "poi", "poi", "study", "study", "study", "study"),
+              cat = c("poi", "poi", "poi", "Baiama", "Lalehun", "Lambayama", "Seilama"),
               lat = c(8.48708717953912, 7.966794221623807, 7.876161956810467, 7.837529372181356, 8.197392257077409, 7.850593096948891, 8.12230048178563),
               lon = c(-13.2356631741985, -11.740987026160457, -11.190811585001954, -11.268407665149846, -11.08032958100431, -11.196939025872055, -11.1935976318381)) %>%
   st_as_sf(coords = c("lon", "lat"), crs = default_CRS)
@@ -34,12 +38,12 @@ poi <- tibble(name = c("Freetown", "Bo", "Kenema", "Baiama", "Lalehun", "Lambaya
 sl_map <- ggplot() + 
   geom_sf(data = sle_sf, fill = "grey") +
   geom_sf(data = sle_sf %>%
-            filter(str_detect(NAME_2, "Kenema")), fill = "lightgreen") +
+            filter(str_detect(NAME_2, "Kenema")), fill = "#FFD580") +
   geom_sf(data = poi, size = 0.8) +
   ggrepel::geom_label_repel(data = poi, aes(label = name, geometry = geometry, fill = cat), stat = "sf_coordinates", min.segment.length = 0) +
   labs(x = element_blank(),
        y = element_blank()) +
-  scale_fill_manual(values = c("white", "orange")) +
+  scale_fill_manual(values = fig_1_palette) +
   theme_bw() +
   ggspatial::annotation_north_arrow(style = north_arrow_minimal()) +
   ggspatial::annotation_scale(location = "br") +
@@ -51,6 +55,39 @@ sl_inset_map <- ggdraw() +
 
 ggsave2(plot = sl_inset_map, filename = here("output", "SLE_sites_inset.png"), dpi = 300, width = 7, height = 6)
 
+
+# Trap timeline -----------------------------------------------------------
+trap_data <- read_rds(here("data", "input", "combined_data.rds"))
+trap_data <- trap_data$trap_data
+
+timeline <- trap_data %>%
+  tibble() %>%
+  filter(village != "bambawo") %>%
+  group_by(visit, village)  %>%
+  mutate(tn = n(),
+         date_set = min(date_set)) %>%
+  select(date_set, visit, village, tn) %>%
+  distinct() %>%
+  ungroup() %>%
+  mutate(date_set = case_when(date_set == as.Date("2022-01-18") ~ as.Date("2022-01-21"),
+                              date_set == as.Date("2022-04-12") & village == "lalehun" ~ as.Date("2022-04-17"),
+                              date_set == as.Date("2022-04-28") & village == "lalehun" ~ as.Date("2022-08-08"),
+                              date_set == as.Date("2022-10-18") ~ as.Date("2022-08-24"),
+                              date_set == as.Date("2022-10-29") & village == "seilama" ~ as.Date("2022-11-06"),
+                              TRUE ~ date_set),
+         village = str_to_title(village))
+
+timeline_plot <- ggplot(timeline) +
+  geom_rect(aes(xmin = as.Date("2022-05-01"), xmax = as.Date("2022-11-01"), ymin = -Inf, ymax = Inf), fill = "lightblue", alpha = 0.2) +
+  geom_rect(aes(xmin = as.Date("2021-05-01"), xmax = as.Date("2021-11-01"), ymin = -Inf, ymax = Inf), fill = "lightblue", alpha = 0.2) +
+  geom_rect(aes(xmin = date_set, xmax = date_set + 4, ymin = 0, ymax = tn, fill = village)) +
+  scale_fill_manual(values = village_palette) +
+  theme_bw() +
+  labs(x = "Visit date",
+       y = "Trap nights",
+       fill = "Village")
+
+save_plot(plot = timeline_plot, filename = here("output", "timeline_plot.png"))
 # Trap locations ----------------------------------------------------------
 
 fig_1_df <- read_rds(here("data", "observed_data", "fig_1_df.rds"))
@@ -85,7 +122,7 @@ for(i in 1:length(fig_1_df))  {
     guides(colour = "none") +
     facet_wrap(~ landuse) +
     labs(fill = "Number Trap-Nights",
-         title = str_to_title(unique(grids_with_traps[[i]]$village))) +
+         title = str_to_title(unique(fig_1_df[[i]]$village))) +
     coord_sf(expand = FALSE) +
     scale_x_continuous(breaks = breaks[[i]]$x) +
     scale_y_continuous(breaks = breaks[[i]]$y) +

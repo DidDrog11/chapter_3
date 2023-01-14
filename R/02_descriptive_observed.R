@@ -310,18 +310,18 @@ fig_2_df <- detections %>%
   mutate(detection_rate = n_detected/tn * 1000,
          clean_names = str_to_sentence(str_replace(clean_names, "_", " ")),
          village = factor(str_to_sentence(village), levels = c("Baiama", "Lalehun", "Lambayama", "Seilama")),
-         landuse = factor(str_to_sentence(landuse), levels = c("Forest", "Agriculture", "Village")))
+         landuse = factor(str_to_sentence(landuse), levels = c("Forest", "Agriculture", "Village")),
+         n_detected = paste0("N = ", n_detected))
 
 fig_2 <- fig_2_df %>%
-  ggplot(aes(x = village, y = detection_rate, fill = landuse, label = n_detected)) +
-  geom_col(position = position_dodge2(preserve = "single", width = 0.7)) +
-  geom_text(size = 3, position = position_dodge2(preserve = "single", width = 0.8)) +
-  scale_y_continuous(breaks = scales::pretty_breaks()) +
-  scale_fill_manual(values = landuse_palette) +
-  facet_wrap(~ clean_names, scales = "free_y") +
-  labs(x = element_blank(),
-       y = "Detection rate per 1,000 trap nights",
-       fill = "Landuse") +
+  ggplot(aes(x = landuse, y = clean_names, fill = detection_rate, label = n_detected)) +
+  geom_tile() +
+  geom_label(fill = "white") +
+  scale_fill_viridis_c() +
+  facet_wrap(~ village) +
+  labs(y = element_blank(),
+       fill = "Detection rate per 1,000 trap nights",
+       x = "Landuse") +
   theme_bw()
 
 save_plot(plot = fig_2, filename = here("output", "Figure_2.png"), base_width = 13, base_height = 7)

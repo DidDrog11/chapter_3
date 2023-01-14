@@ -274,6 +274,12 @@ occ_ms_formula_3d <- ~ landuse + scale(distance_building) + scale(elevation) + s
 # Detection
 det_ms_formula_3d <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
+# Model structure 3e landuse and village only
+# Occurrence
+occ_ms_formula_3e <- ~ landuse + village
+# Detection
+det_ms_formula_3e <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+
 # Model structure 4 (spatial)
 # Occurrence
 occ_ms_formula_4 <- ~ landuse  + village + scale(distance_building) + scale(elevation)
@@ -345,7 +351,7 @@ if(!file.exists(here("data", "observed_model_output", "intercept_only_sp_subset.
 
 summary(out_ms_int, level = "both")
 
-waicOcc(out_ms_int)
+waic_int <- waicOcc(out_ms_int)
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_int_sp_subset.rds"))) {
   
@@ -403,7 +409,7 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_1_sp_subset.rd
 
 summary(ppc_ms_out_1)
 
-waicOcc(out_ms_1)
+waic_1 <- waicOcc(out_ms_1)
 
 
 ## Model 2 -----------------------------------------------------
@@ -433,7 +439,7 @@ if(!file.exists(here("data", "observed_model_output", "model_2_sp_subset.rds")))
 
 summary(out_ms_2, level = "both")
 
-waicOcc(out_ms_2)
+waic_2 <- waicOcc(out_ms_2)
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_2_sp_subset.rds"))) {
   
@@ -479,7 +485,7 @@ if(!file.exists(here("data", "observed_model_output", "model_3_sp_subset.rds")))
 
 summary(out_ms_3, level = "both")
 
-waicOcc(out_ms_3)
+waic_3 <- waicOcc(out_ms_3)
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3_sp_subset.rds"))) {
   
@@ -526,7 +532,7 @@ if(!file.exists(here("data", "observed_model_output", "model_3b_sp_subset.rds"))
 
 summary(out_ms_3b, level = "both")
 
-waicOcc(out_ms_3b)
+waic_3b <- waicOcc(out_ms_3b)
 
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3b_sp_subset.rds"))) {
@@ -572,7 +578,7 @@ if(!file.exists(here("data", "observed_model_output", "model_3c_sp_subset.rds"))
 
 summary(out_ms_3c, level = "both")
 
-waicOcc(out_ms_3c)
+waic_3c <- waicOcc(out_ms_3c)
 
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3c_sp_subset.rds"))) {
@@ -618,7 +624,7 @@ if(!file.exists(here("data", "observed_model_output", "model_3d_sp_subset.rds"))
 
 summary(out_ms_3d, level = "both")
 
-waicOcc(out_ms_3d)
+waic_3d <- waicOcc(out_ms_3d)
 
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3d_sp_subset.rds"))) {
@@ -634,6 +640,52 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3d_sp_subset.r
 }
 
 summary(ppc_ms_out_3d)
+
+## Model 3e ----------------------------------------------------------------
+
+# Run model 3e
+
+if(!file.exists(here("data", "observed_model_output", "model_3e_sp_subset.rds"))) {
+  
+  out_ms_3e <- msPGOcc(occ.formula = occ_ms_formula_3e, 
+                       det.formula = det_ms_formula_3e, 
+                       data = data_msom, 
+                       inits = ms_inits, 
+                       n.samples = 30000, 
+                       priors = ms_priors, 
+                       n.omp.threads = 1, 
+                       verbose = TRUE, 
+                       n.report = 6000, 
+                       n.burn = 10000,
+                       n.thin = 50, 
+                       n.chains = 3)
+  
+  write_rds(out_ms_3e, here("data", "observed_model_output", "model_3e_sp_subset.rds"))
+  
+} else {
+  
+  out_ms_3e <- read_rds(here("data", "observed_model_output", "model_3e_sp_subset.rds"))
+  
+}
+
+summary(out_ms_3e, level = "both")
+
+waic_3e <- waicOcc(out_ms_3e)
+
+
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3e_sp_subset.rds"))) {
+  
+  ppc_ms_out_3e <- ppcOcc(out_ms_3d, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_3e, here("data", "observed_model_output", "ppc_ms_out_3e_sp_subset.rds"))
+  
+} else {
+  
+  ppc_ms_out_3e <- read_rds(here("data", "observed_model_output", "ppc_ms_out_3e_sp_subset.rds"))
+  
+}
+
+summary(ppc_ms_out_3e)
 
 ## Model 4 (Spatial) -------------------------------------------------------
 # Time to run ~ 36 minutes
@@ -669,7 +721,7 @@ if(!file.exists(here("data", "observed_model_output", "model_4_sp_subset.rds")))
 
 summary(out_ms_4, level = "both")
 
-waicOcc(out_ms_4)
+waic_4 <- waicOcc(out_ms_4)
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rds"))) {
   
@@ -687,14 +739,16 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rd
 
 summary(ppc_ms_out_4)
 
-all_species <- tibble(model = c("out_ms_int", "out_ms_1", "out_ms_2", "out_ms_3",
-                                "out_ms_3b", "out_ms_3c", "out_ms_3d", "out_ms_4"),
+all_models <- tibble(model = c("out_ms_int", "out_ms_1", "out_ms_2", "out_ms_3",
+                                "out_ms_3b", "out_ms_3c", "out_ms_3d", "out_ms_3e",
+                               "out_ms_4"),
                       terms = as.character(c(occ_ms_formula_int, occ_ms_formula_1, occ_ms_formula_2, occ_ms_formula_3,
-                                             occ_ms_formula_3b, occ_ms_formula_3c, occ_ms_formula_3d, occ_ms_formula_4)),
-                      waic = c(4150, 3841, 3841, 3942, 4008, 3951, 3890, 3831),
-                      com_bpc = c(0.56, .61, 0.48, 0.51, 0.53, 0.52, 0.51, 0.48),
-                      max_bpc = c(0.8, 0.92, 0.72, 0.77, 0.78, 0.77, 0.74, 0.7),
-                      min_bpc = c(0.18, 0.15, 0.13, 0.11, 0.1, 0.11, 0.13, 0.13))
+                                             occ_ms_formula_3b, occ_ms_formula_3c, occ_ms_formula_3d, occ_ms_formula_3e,
+                                             occ_ms_formula_4)),
+                      waic = c(waic_int[3], waic_1[3], waic_2[3], waic_3[3], waic_3b[3], waic_3c[3], waic_3d[3], waic_3e[3], waic_4[3]),
+                      com_bpc = c(0.56, .61, 0.48, 0.51, 0.53, 0.52, 0.51, 0.51, 0.48),
+                      max_bpc = c(0.8, 0.92, 0.72, 0.77, 0.78, 0.77, 0.74, 0.73, 0.7),
+                      min_bpc = c(0.18, 0.15, 0.13, 0.11, 0.1, 0.11, 0.13, 0.13, 0.13))
 
 
 
@@ -731,7 +785,8 @@ ggplot(ppc.df, aes(x = True, y = Fitted, colour = discrepancy)) +
   facet_wrap(~ Species, scales = "free") +
   theme_bw()
 
-# Probability of occurrence
+
+# Probability of occurrence -----------------------------------------------
 
 d0 <- as.data.frame.table(out_ms_4$psi.samples)
 d1 <- d0 %>%
@@ -740,6 +795,8 @@ d1 <- d0 %>%
   group_by(Site, Species) %>%
   summarise(Mean_psi = mean(Freq),
             SD_psi = SD(Freq))
+
+# Model checks
 
 check_model <- left_join(d1, y_long %>%
                            rename(Site = site_code,
@@ -754,383 +811,196 @@ visualise_check <- ggplot(check_model) +
   geom_point(aes(x = Mean_psi, y = observed_bin)) +
   facet_wrap(~ Species, ncol = 1)
 
+# Interpretation of species occurrence by landuse
+species_order_plots <- c("Mastomys spp", "Rattus spp", "Mus musculus", "Crocidura spp", "Praomys spp", "Lophuromys spp", "Mus minutoides")
+
+## Species occurrence by landuse -------------------------------------------
+
 plot_m4 <- d1 %>%
   left_join(raw_occ, by = c("Site" = "site_code")) %>%
   mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village"), 
                           labels = c("Forest", "Agriculture", "Village")),
          Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
-                          levels = c("Praomys spp", "Crocidura spp", "Lophuromys spp",
-                                     "Mus minutoides", "Mastomys spp", "Rattus spp",
-                                     "Mus musculus")),
+                          levels = species_order_plots),
          village = str_to_sentence(village),
          peri_urban = case_when(village == "Lambayama" ~ "Peri-Urban",
                                 TRUE ~ "Rural"))
 
 landuse_plot <- plot_m4 %>%
   ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = landuse), notch = FALSE) + 
-  facet_wrap(~ Species, nrow = 1) +
+  geom_jitter(aes(y = Mean_psi, x = landuse, colour = landuse), alpha = 0.2) + 
+  geom_violin(aes(y = Mean_psi, x = landuse, fill = landuse)) + 
+  facet_wrap(~ Species, nrow = 2) +
   scale_fill_manual(values = landuse_palette) +
+  scale_colour_manual(values = landuse_palette) +
+  guides(colour = "none") +
   theme_bw() +
   labs(y = "Probability of occurrence (ψ)",
        x = element_blank(),
        fill = element_blank())
 
-save_plot(plot = landuse_plot, filename = here("output", "Figure_3.png"), base_width = 14)
+save_plot(plot = landuse_plot, filename = here("output", "Figure_3.png"), base_width = 11, base_height = 9)
 
 summaries <- plot_m4 %>%
   group_by(Species, village, landuse) %>%
   summarise(median_psi = median(Mean_psi),
             IQR_lower = IQR(Mean_psi))
 
-landuse_by_village <- plot_m4 %>%
+
+## Species occurrence by landuse split on peri-urban/rural -----------------
+
+urbanisation_by_landuse <- plot_m4 %>%
   ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = village, colour = village)) + 
-  geom_boxplot(aes(y = Mean_psi, x = landuse, fill = village), outlier.color = NA) + 
+  geom_point(aes(y = Mean_psi, x = peri_urban, colour = landuse, fill = landuse), alpha = 0.2, position = position_jitterdodge(dodge.width = 0.9)) + 
+  geom_violin(aes(y = Mean_psi, x = peri_urban, fill = landuse)) + 
   facet_wrap(~ Species, nrow = 2) +
-  scale_fill_manual(values = village_palette) +
-  scale_colour_manual(values = village_palette) +
+  scale_fill_manual(values = landuse_palette) +
+  scale_colour_manual(values = landuse_palette) +
   theme_bw() +
   guides(colour = "none") +
   labs(y = "Probability of occurrence (ψ)",
        x = element_blank(),
-       fill = "Village",
-       colour = element_blank())
-
-village_by_landuse <- plot_m4 %>%
-  ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = village, fill = landuse, colour = landuse)) + 
-  geom_boxplot(aes(y = Mean_psi, x = village, fill = landuse), outlier.color = NA) + 
-  facet_wrap(~ Species, nrow = 2) +
-  scale_fill_manual(values = landuse_palette) +
-  scale_colour_manual(values = landuse_palette) +
-  theme_bw() +
-  guides(colour = "none") +
-  labs(y = "Probability of occurrence",
-       x = element_blank(),
        fill = "Landuse",
        colour = element_blank())
 
-urbanisation_by_landuse <- plot_m4 %>%
-  ggplot() +
-  geom_boxplot(aes(y = Mean_psi, x = peri_urban, fill = landuse, colour = landuse)) + 
-  geom_boxplot(aes(y = Mean_psi, x = peri_urban, fill = landuse), outlier.color = NA) + 
-  facet_wrap(~ Species, nrow = 2) +
-  scale_fill_manual(values = landuse_palette) +
-  scale_colour_manual(values = landuse_palette) +
-  theme_bw() +
-  guides(colour = "none") +
-  labs(y = "Probability of occurrence",
-       x = element_blank(),
-       fill = "Landuse",
-       colour = element_blank())
+save_plot(plot = urbanisation_by_landuse, filename = here("output", "Figure_4.png"), base_width = 8, base_height = 8)
 
-save_plot(plot = landuse_by_village, filename = here("output", "Figure_4a.png"), base_width = 10, base_height = 8)
-save_plot(plot = village_by_landuse, filename = here("output", "Figure_4b.png"), base_width = 12, base_height = 8)
-save_plot(plot = urbanisation_by_landuse, filename = here("output", "Figure_4c.png"), base_width = 8, base_height = 8)
 
-# Probability of detection
+## Species occurrence by distance from building and elevation ----------------------------
 
-d2 <- as.data.frame.table(out_ms_4$psi.samples)
-d3 <- d0 %>%
+scaling_pred <- raw_occ %>%
+  mutate(scaled_distance_building = scale(distance_building)[,1],
+         scaled_elevation = scale(elevation)[,1],
+         bin_forest = case_when(landuse == "forest" ~ 1,
+                                TRUE ~ 0),
+         bin_village = case_when(landuse == "village" ~ 1,
+                                 TRUE ~ 0),
+         bin_lal = case_when(village == "lalehun" ~ 1,
+                             TRUE ~ 0),
+         bin_lam = case_when(village == "lambayama" ~ 1,
+                             TRUE ~ 0),
+         bin_sei = case_when(village == "seilama" ~ 1,
+                             TRUE ~ 0),
+         intercept = 1)
+
+# Marginal effect of distance_building
+distance_plot <- plot_m4 %>%
+  ungroup() %>%
+  mutate(scaled_distance_building = scale(distance_building)[, 1]) %>%
+  ggplot(aes(x = scaled_distance_building, y = Mean_psi, colour = landuse, group = landuse)) +
+  geom_point() +
+  geom_smooth() +
+  facet_wrap(~ Species + village) +
+  theme_bw()
+
+save_plot(plot = distance_plot, filename = here("output", "distance_marginal.png"), base_width = 8, base_height = 8)
+
+# Marginal effect of elevation
+elevation_plot <- plot_m4 %>%
+  ungroup() %>%
+  mutate(scaled_elevation = scale(elevation)[, 1]) %>%
+  ggplot(aes(x = scaled_elevation, y = Mean_psi, colour = landuse, group = landuse)) +
+  geom_point() +
+  geom_smooth() +
+  facet_wrap(~ Species + village) +
+  theme_bw()
+
+save_plot(plot = elevation_plot, filename = here("output", "elevation_marginal.png"), base_width = 8, base_height = 8)
+
+# Probability of detection ------------------------------------------------
+
+d2 <- as.data.frame.table(out_ms_4$z.samples)
+d3 <- d2 %>%
   mutate(Site = as.integer(Var3),
          Species = factor(Var2, labels = sp_codes)) %>%
   group_by(Site, Species) %>%
-  summarise(Mean_psi = mean(Freq),
-            SD_psi = SD(Freq))
+  summarise(Mean_z = mean(Freq),
+            SD_z = SD(Freq))
 
-# Predictions -------------------------------------------------------------
+precipitation <- scale(c(det_covs$precipitation))
+min_precipitation <- min(precipitation, na.rm = TRUE)
+max_precipitation <- max(precipitation, na.rm = TRUE)
+pred_precipitation <- seq(from = min_precipitation, to = max_precipitation, length.out = 100)
+mean_precipitation <- mean(pred_precipitation, na.rm = TRUE)
 
+moon <- c(det_covs$moon_fraction)
+min_moon <- min(moon, na.rm = TRUE)
+max_moon <- max(moon, na.rm = TRUE)
+pred_moon <- seq(from = min_moon, to = max_moon, length.out = 100)
+mean_moon <- mean(moon, na.rm = TRUE)
 
-## Intercept only ----------------------------------------------------------
-results_int <- list()
-
-for(i in 1:nrow(raw_occ)) {
-  
-  results_int[[i]] <- as.data.frame(out_ms_int$psi.samples[, , i])
-  names(results_int[[i]]) <- sp_codes
-  results_int[[i]] <- results_int[[i]] %>%
-    pivot_longer(cols = everything(), names_to = "species", values_to = "occurrence") %>%
-    group_by(species) %>%
-    summarise(mean_occurrence = mean(occurrence),
-              sd_occurrence = sd(occurrence))
-  
-  results_int[[i]] <- bind_cols(raw_occ[i, ], results_int[[i]])
-  
-}
-
-results_int <- do.call(rbind, results_int)
-
-ggplot(data = results_int, aes(x = mean_occurrence, y = species, fill = species)) +
-  geom_density_ridges() +
-  theme_bw() +
-  labs(title = "Probability of occurrence - Intercept only",
-       y = "Species",
-       x = "Psi",
-       colour = element_blank())
-
-number_individuals_int <- list()
-
-for(i in 1:nrow(raw_occ)) {
-  
-  number_individuals_int[[i]] <- as.data.frame(out_ms_int$z.samples[, , i])
-  names(number_individuals_int[[i]]) <- sp_codes
-  number_individuals_int[[i]] <- number_individuals_int[[i]] %>%
-    pivot_longer(cols = everything(), names_to = "species", values_to = "presence") %>%
-    group_by(species) %>%
-    summarise(modelled_presence = sum(presence))
-  
-  number_individuals_int[[i]] <- bind_cols(raw_occ[i, ], number_individuals_int[[i]])
-  
-}
-
-number_individuals_int <- do.call(rbind, number_individuals_int)
-
-modelled_individuals_int <- number_individuals_int %>%
-  group_by(species) %>%
-  summarise(`Intercept only` = sum(modelled_presence)/1200)
-
-compare_predicted <- left_join(observed_species, modelled_individuals_int, by = "species")
-
-## Model 1 -----------------------------------------------------------------
-results_m1 <- list()
-
-for(i in 1:nrow(raw_occ)) {
-  
-  results_m1[[i]] <- as.data.frame(out_ms_1$psi.samples[, , i])
-  names(results_m1[[i]]) <- sp_codes
-  results_m1[[i]] <- results_m1[[i]] %>%
-    pivot_longer(cols = everything(), names_to = "species", values_to = "occurrence")
-  
-  results_m1[[i]] <- bind_cols(raw_occ[i, ], results_m1[[i]]) %>%
-    mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village"), labels = c("Forest", "Agriculture", "Village")),
-           village = factor(village, levels = c("baiama", "lalehun", "seilama", "lambayama"), labels = c("Baiama", "Lalehun", "Seilama", "Lambayama")))
-  
-}
-
-results_m1 <- do.call(rbind, results_m1)
-
-summary_m1 <- results_m1 %>%
-  group_by(species, landuse, village) %>%
-  summarise(Median = round(median(occurrence), 4),
-            Lower_quartile = round(quantile(occurrence, 0.25), 4),
-            Upper_quartile = round(quantile(occurrence, 0.75), 4))
-
-m1_figure <- ggplot(data = results_m1, aes(x = occurrence, y = species, fill = village)) +
-  geom_boxplot(outlier.shape = NA) +
-  theme_bw() +
-  labs(title = "Probability of occurrence - Model 1",
-       y = "Probability of occurrence",
-       x = "Species",
-       fill = "Village",
-       colour = element_blank()) +
-  facet_wrap(~ landuse, ncol = 1)
-
-save_plot(plot = m1_figure, filename = here("output", "model_1_plot_sp_subset.png"),
-          base_width = 8,
-          base_height = 10)
-
-number_individuals_1 <- list()
-
-for(i in 1:nrow(raw_occ)) {
-  
-  number_individuals_1[[i]] <- as.data.frame(out_ms_1$z.samples[, , i])
-  names(number_individuals_1[[i]]) <- sp_codes
-  number_individuals_1[[i]] <- number_individuals_1[[i]] %>%
-    pivot_longer(cols = everything(), names_to = "species", values_to = "presence") %>%
-    group_by(species) %>%
-    summarise(modelled_presence = sum(presence))
-  
-  number_individuals_1[[i]] <- bind_cols(raw_occ[i, ], number_individuals_1[[i]])
-  
-}
-
-number_individuals_1 <- do.call(rbind, number_individuals_1)
-
-modelled_individuals_1 <- number_individuals_1 %>%
-  group_by(species) %>%
-  summarise(`Model 1` = sum(modelled_presence)/1200)
-
-compare_predicted <- left_join(compare_predicted, modelled_individuals_1, by = "species")
-
-## Model 2 --------------------------------------------
-
-X_2 <- matrix(c(1, 0, 0, 0, 0,
-                1, 1, 0, 0, 0,
-                1, 0, 1, 0, 0,
-                1, 0, 0, 1, 0,
-                1, 0, 0, 0, 1),
-              nrow = 5, ncol =  5, byrow = TRUE)
-
-pred_2 <- predict(out_ms_2, X_2)
-
-interp_2 <- list()
-
-for(i in 1:nrow(X_2)) {
-  
-  interp_2[[i]] <- pred_2$psi.0.samples[, , i]
-  colnames(interp_2[[i]]) <- sp_codes
-  
-}
-
-names(interp_2) <- c("Agriculture", "Fallow", "Forest", "Village_inside", "Village_outside")
-
-interp_2 <- bind_rows(as.data.frame(interp_2[[1]]) %>%
-                        mutate(landuse = "Agriculture") %>%
-                        tibble(),
-                      as.data.frame(interp_2[[2]]) %>%
-                        mutate(landuse = "Fallow") %>%
-                        tibble(),
-                      as.data.frame(interp_2[[3]]) %>%
-                        mutate(landuse = "Forest") %>%
-                        tibble(),
-                      as.data.frame(interp_2[[4]]) %>%
-                        mutate(landuse = "Village_inside") %>%
-                        tibble(),
-                      as.data.frame(interp_2[[5]]) %>%
-                        mutate(landuse = "Village_outside") %>%
-                        tibble()) %>% 
-  pivot_longer(cols = c(-landuse), values_to = "occupancy", names_to = "species")
-
-ggplot(interp_2) +
-  geom_point(aes(x = occupancy, y = species, colour = landuse), position = position_jitter()) +
-  facet_wrap(~ landuse) +
-  theme_bw()
+tn <- scale(c(det_covs$trap_nights))
+min_trap_nights <- min(tn, na.rm = TRUE)
+max_trap_nights <- max(tn, na.rm = TRUE)
+pred_trap_nights <- seq(from = min_trap_nights, to = max_trap_nights, length.out = 100)
+mean_trap_nights <- mean(pred_trap_nights, na.rm = TRUE)
 
 
-## Model 3 --------------------------------------------
+## Probability of detection - precipitation --------------------------------
 
-X_3 <- matrix(c(1, 0, 0, 0, 0, 0, 0, 0,
-                1, 1, 0, 0, 0, 0, 0, 0,
-                1, 0, 1, 0, 0, 0, 0, 0,
-                1, 0, 0, 1, 0, 0, 0, 0,
-                1, 0, 0, 0, 1, 0, 0, 0,
-                1, 0, 0, 0, 0, 1, 0, 0,
-                1, 1, 0, 0, 0, 1, 0, 0,
-                1, 0, 1, 0, 0, 1, 0, 0,
-                1, 0, 0, 1, 0, 1, 0, 0,
-                1, 0, 0, 0, 1, 1, 0, 0,
-                1, 0, 0, 0, 0, 0, 1, 0,
-                1, 1, 0, 0, 0, 0, 1, 0,
-                1, 0, 1, 0, 0, 0, 1, 0,
-                1, 0, 0, 1, 0, 0, 1, 0,
-                1, 0, 0, 0, 1, 0, 1, 0,
-                1, 0, 0, 0, 0, 0, 0, 1,
-                1, 1, 0, 0, 0, 0, 0, 1,
-                1, 0, 1, 0, 0, 0, 0, 1,
-                1, 0, 0, 1, 0, 0, 0, 1,
-                1, 0, 0, 0, 1, 0, 0, 1),
-              nrow = 20, ncol =  8, byrow = TRUE)
+precipitation_prediction <- cbind(1, pred_precipitation, mean_moon, mean_trap_nights)
+out_detection_precipitation <- predict(out_ms_4, precipitation_prediction, type = "detection")
+
+precipitation_estimates <- c(apply(out_detection_precipitation$p.0.samples, c(2, 3), mean))
+plot_precipitation <- data.frame(detection_probability = precipitation_estimates,
+                                 Species = rep(sp_codes, 100),
+                                 scaled_precipitation = rep(pred_precipitation, each = N)) %>%
+  mutate(Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
+                          levels = species_order_plots),
+         Precipitation = scaled_precipitation * attr(precipitation, "scaled:scale") + attr(precipitation, 'scaled:center'))
+
+precipitation_plot <- plot_precipitation %>%
+  ggplot() +
+  geom_line(aes(x = Precipitation, y = detection_probability)) +
+  theme_bw() + 
+  scale_y_continuous(limits = c(0, 1)) + 
+  facet_wrap(~ Species) + 
+  labs(x = 'Mean monthly rainfall (mm)', y = 'Detection Probability') 
 
 
-pred_3 <- predict(out_ms_3, X_3)
+save_plot(plot = precipitation_plot, filename = here("output", "precipitation_marginal.png"), base_width = 8, base_height = 8)
 
-interp_3 <- list()
+## Probability of detection - moon --------------------------------
 
-for(i in 1:nrow(X_3)) {
-  
-  interp_3[[i]] <- as.data.frame(pred_3$psi.0.samples[, , i])
-  colnames(interp_3[[i]]) <- sp_codes
-  
-}
+moon_prediction <- cbind(1, mean_precipitation, pred_moon, mean_trap_nights)
+out_detection_moon <- predict(out_ms_4, moon_prediction, type = "detection")
 
-landuse_names <- c("Agriculture", "Fallow", "Forest", "Village_inside", "Village_outside")
-village_names <- c("Baiama", "Lalehun", "Lambayama", "Seilama")
+moon_estimates <- c(apply(out_detection_moon$p.0.samples, c(2, 3), mean))
+plot_moon <- data.frame(detection_probability = moon_estimates,
+                                 Species = rep(sp_codes, 100),
+                                 Moon = rep(pred_moon, each = N)) %>%
+  mutate(Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
+                          levels = species_order_plots))
 
-assign_names <- as.data.frame(X_3) %>%
-  mutate(village = case_when(V1 == 1 & V6 == 0 & V7 == 0 & V8 == 0 ~ "Baiama",
-                             V6 == 1 ~ "Lalehun",
-                             V7 == 1 ~ "Lambayama",
-                             V8 == 1 ~ "Seilama"),
-         landuse = case_when(V1 == 1 & V2 == 0 & V3 == 0 & V4 == 0  & V5 == 0 ~ "Agriculture",
-                             V2 == 1 ~ "Fallow",
-                             V3 == 1 ~ "Forest",
-                             V4 == 1 ~ "Village_inside",
-                             V5 == 1 ~ "Village_outside"))
+moon_plot <- plot_moon %>%
+  ggplot() +
+  geom_line(aes(x = Moon, y = detection_probability)) +
+  theme_bw() + 
+  scale_y_continuous(limits = c(0, 1)) + 
+  facet_wrap(~ Species) + 
+  labs(x = 'Moon fraction', y = 'Detection Probability')
 
-for(i in 1:length(interp_3)) {
-  
-  interp_3[[i]] <- interp_3[[i]] %>%
-    mutate(village = assign_names$village[i],
-           landuse = assign_names$landuse[i])
-  
-}
+save_plot(plot = moon_plot, filename = here("output", "moon_marginal.png"), base_width = 8, base_height = 8)
 
-interp_3 <- do.call(rbind, interp_3) %>% 
-  pivot_longer(cols = c(-landuse, -village), values_to = "occupancy", names_to = "species")
+## Probability of detection - trap night --------------------------------
 
-ggplot(interp_3) +
-  geom_boxplot(aes(x = occupancy, y = species, colour = village)) +
-  facet_wrap(~ landuse) +
-  theme_bw()
+trap_night_prediction <- cbind(1, mean_precipitation, mean_moon, pred_trap_nights)
+out_detection_trap_night <- predict(out_ms_4, trap_night_prediction, type = "detection")
 
-## Model 3b --------------------------------------------
+trap_night_estimates <- c(apply(out_detection_trap_night$p.0.samples, c(2, 3), mean))
+plot_trap_night <- data.frame(detection_probability = trap_night_estimates,
+                                 Species = rep(sp_codes, 100),
+                                 scaled_trap_night = rep(pred_trap_nights, each = N)) %>%
+  mutate(Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
+                          levels = species_order_plots),
+         trap_night = scaled_trap_night * attr(tn, "scaled:scale") + attr(tn, 'scaled:center'))
 
-X_3b <- matrix(c(1, 0, 0, 0, 0, 1,
-                 1, 1, 0, 0, 0, 1,
-                 1, 0, 1, 0, 0, 1,
-                 1, 0, 0, 1, 0, 1,
-                 1, 0, 0, 0, 1, 1,
-                 1, 0, 0, 0, 0, 2,
-                 1, 1, 0, 0, 0, 2,
-                 1, 0, 1, 0, 0, 2,
-                 1, 0, 0, 1, 0, 2,
-                 1, 0, 0, 0, 1, 2,
-                 1, 0, 0, 0, 0, 3,
-                 1, 1, 0, 0, 0, 3,
-                 1, 0, 1, 0, 0, 3,
-                 1, 0, 0, 1, 0, 3,
-                 1, 0, 0, 0, 1, 3,
-                 1, 0, 0, 0, 0, 4,
-                 1, 1, 0, 0, 0, 4,
-                 1, 0, 1, 0, 0, 4,
-                 1, 0, 0, 1, 0, 4,
-                 1, 0, 0, 0, 1, 4),
-               nrow = 20, ncol =  6, byrow = TRUE)
+trap_night_plot <- plot_trap_night %>%
+  ggplot() +
+  geom_line(aes(x = trap_night, y = detection_probability)) +
+  theme_bw() + 
+  scale_y_continuous(limits = c(0, 1)) + 
+  facet_wrap(~ Species) + 
+  labs(x = 'Trap nights', y = 'Detection Probability') 
 
-
-# pred_3b <- predict(out_ms_3b, X_3b)
-# 
-# interp_3b <- list()
-# 
-# for(i in 1:nrow(X_3b)) {
-#   
-#   interp_3b[[i]] <- as.data.frame(pred_3b$psi.0.samples[, , i])
-#   colnames(interp_3b[[i]]) <- sp_codes
-#   
-# }
-# 
-# landuse_names <- c("Agriculture", "Fallow", "Forest", "Village_inside", "Village_outside")
-# village_names <- c("Baiama", "Lalehun", "Lambayama", "Seilama")
-# 
-# assign_names <- as.data.frame(X_3b) %>%
-#   mutate(village = case_when(V1 == 1 & V6 == 0 & V7 == 0 & V8 == 0 ~ "Baiama",
-#                              V6 == 1 ~ "Lalehun",
-#                              V7 == 1 ~ "Lambayama",
-#                              V8 == 1 ~ "Seilama"),
-#          landuse = case_when(V1 == 1 & V2 == 0 & V3 == 0 & V4 == 0  & V5 == 0 ~ "Agriculture",
-#                              V2 == 1 ~ "Fallow",
-#                              V3 == 1 ~ "Forest",
-#                              V4 == 1 ~ "Village_inside",
-#                              V5 == 1 ~ "Village_outside"))
-# 
-# for(i in 1:length(interp_3b)) {
-#   
-#   interp_3b[[i]] <- interp_3b[[i]] %>%
-#     mutate(village = assign_names$village[i],
-#            landuse = assign_names$landuse[i])
-#   
-# }
-# 
-# interp_3b <- do.call(rbind, interp_3b) %>% 
-#   pivot_longer(cols = c(-landuse, -village), values_to = "occupancy", names_to = "species")
-# 
-# ggplot(interp_3b) +
-#   geom_boxplot(aes(x = occupancy, y = species, colour = village)) +
-#   facet_wrap(~ landuse) +
-#   theme_bw()
-
-
-## Model 4 -----------------------------------------------------------------
-
-
+save_plot(plot = trap_night_plot, filename = here("output", "tn_marginal.png"), base_width = 8, base_height = 8)
