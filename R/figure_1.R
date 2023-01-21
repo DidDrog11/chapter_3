@@ -47,13 +47,14 @@ sl_map <- ggplot() +
   theme_bw() +
   ggspatial::annotation_north_arrow(style = north_arrow_minimal()) +
   ggspatial::annotation_scale(location = "br") +
-  guides(fill = "none")
+  guides(fill = "none") +
+  labs(title = "A)")
 
 sl_inset_map <- ggdraw() +
   draw_plot(sl_map) +
   draw_plot(africa_map, x = 0.7, y = 0.65, width = 0.3, height = 0.3)
 
-ggsave2(plot = sl_inset_map, filename = here("output", "SLE_sites_inset.png"), dpi = 300, width = 7, height = 6)
+ggsave2(plot = sl_inset_map, filename = here("output", "Figure_1a.png"), dpi = 300, width = 7, height = 6)
 
 
 # Trap timeline -----------------------------------------------------------
@@ -85,9 +86,10 @@ timeline_plot <- ggplot(timeline) +
   theme_bw() +
   labs(x = "Visit date",
        y = "Trap nights",
-       fill = "Village")
+       fill = "Village") +
+  labs(title = "F)")
 
-save_plot(plot = timeline_plot, filename = here("output", "timeline_plot.png"))
+save_plot(plot = timeline_plot, filename = here("output", "Figure_1f.png"), base_height = 3, base_width = 6)
 # Trap locations ----------------------------------------------------------
 
 fig_1_df <- read_rds(here("data", "observed_data", "fig_1_df.rds"))
@@ -107,8 +109,8 @@ breaks <- list(baiama = list(x = c(-11.265, -11.255),
                               y = c(8.194, 8.196, 8.199)),
                lambayama = list(x = c(-11.198, -11.195, -11.192),
                                 y = c(7.8515, 7.85, 7.8485)),
-               seilama = list(x = c(-11.198, -11.195, -11.192),
-                              y = c(8.124, 8.122, 8.12)))
+               seilama = list(x = c(-11.198, -11.195),
+                              y = c(8.124, 8.122)))
 
 for(i in 1:length(fig_1_df))  {
   
@@ -117,8 +119,8 @@ for(i in 1:length(fig_1_df))  {
     geom_sf(data = fig_1_df[[i]] %>%
               mutate(landuse = factor(str_to_title(landuse), levels = c("Forest", "Agriculture", "Village"))),
             aes(fill = tn, colour = tn)) +
-    scale_colour_viridis_c(limits = c(0, 100)) +
-    scale_fill_viridis_c(limits = c(0, 100)) +
+    scale_colour_viridis_c(limits = c(0, 100), direction = -1) +
+    scale_fill_viridis_c(limits = c(0, 100), direction = -1) +
     guides(colour = "none") +
     facet_wrap(~ landuse) +
     labs(fill = "Number Trap-Nights",
@@ -131,10 +133,18 @@ for(i in 1:length(fig_1_df))  {
   
 }
 
-save_plot(plot = grids_plot[[1]], filename = here("output", "baiama_grid_locations.png"))
-save_plot(plot = grids_plot[[2]], filename = here("output", "lalehun_grid_locations.png"))
-save_plot(plot = grids_plot[[3]], filename = here("output", "lambayama_grid_locations.png"))
-save_plot(plot = grids_plot[[4]], filename = here("output", "seilama_grid_locations.png"))
+save_plot(plot = grids_plot[[1]] +
+            labs(title = "B)") +
+            guides(fill = "none"), filename = here("output", "Figure_1b.png"), base_height = 3, base_width = 7)
+save_plot(plot = grids_plot[[2]] +
+            labs(title = "C)") +
+            guides(fill = "none"), filename = here("output", "Figure_1c.png"), base_height = 4, base_width = 6)
+save_plot(plot = grids_plot[[3]] +
+            labs(title = "D)") +
+            guides(fill = "none"), filename = here("output", "Figure_1d.png"), base_height = 3, base_width = 7)
+save_plot(plot = grids_plot[[4]] +
+            labs(title = "E)") +
+            guides(fill = "none"), filename = here("output", "Figure_1e.png"), base_height = 3, base_width = 7)
 
 combined_grids <- plot_grid(plotlist = list(grids_plot[[4]] +
                                               theme(legend.position = "none"),

@@ -298,6 +298,7 @@ table_1b <- left_join(species_trap_success_village, species_trap_success_rate, b
 write_rds(table_1b, here("output", "table_1b.rds"))
 
 # Table 1b as plot --------------------------------------------------------
+# Logged detection rate
 
 fig_2_df <- detections %>%
   left_join(sites,
@@ -313,11 +314,13 @@ fig_2_df <- detections %>%
          landuse = factor(str_to_sentence(landuse), levels = c("Forest", "Agriculture", "Village")),
          n_detected = paste0("N = ", n_detected))
 
+detection_rate_breaks <- c(0, 0.01, 0.1, 10, 20, 30)
+
 fig_2 <- fig_2_df %>%
   ggplot(aes(x = landuse, y = clean_names, fill = detection_rate, label = n_detected)) +
   geom_tile() +
   geom_label(fill = "white") +
-  scale_fill_viridis_c() +
+  scale_fill_viridis_c(trans = scales::log10_trans(), breaks = scales::breaks_log()) +
   facet_wrap(~ village) +
   labs(y = element_blank(),
        fill = "Detection rate per 1,000 trap nights",

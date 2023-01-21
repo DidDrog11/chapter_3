@@ -62,6 +62,8 @@ y_long <- y_long %>%
   group_by(site_code) %>%
   mutate(non_0_site_code = cur_group_id())
 
+write_rds(y_long, here("data", "observed_data", "y_long.rds"))
+
 non_0_site_code <- unique(y_long$site_code)
 
 # number of species
@@ -170,10 +172,20 @@ raw_occ <- read_rds(here("data", "observed_data", "occurrence_covariates.rds")) 
   mutate(pop_quartile = case_when(str_detect(pop_quartile, "first") ~ 1,
                                   str_detect(pop_quartile, "second") ~ 2,
                                   str_detect(pop_quartile, "third") ~ 3,
-                                  str_detect(pop_quartile, "fourth") ~ 4))
+                                  str_detect(pop_quartile, "fourth") ~ 4),
+         setting = case_when(village == "lambayama" ~ "peri-urban",
+                             TRUE ~ "rural"),
+         group_landuse = case_when(village == "lambayama" & landuse == "agriculture" ~ "agriculture - peri-urban",
+                                   village == "lambayama" & landuse == "village" ~ "village - peri-urban",
+                                   village != "lambayama" & landuse == "agriculture" ~ "agriculture - rural",
+                                   village != "lambayama" & landuse == "village" ~ "village - rural",
+                                   TRUE ~ landuse))
+
 
 landuse_mat <- matrix(NA, nrow = J, ncol = 1)
 village_mat <- matrix(NA, nrow = J, ncol = 1)
+setting_mat <- matrix(NA, nrow = J, ncol = 1)
+group_landuse_mat <- matrix(NA, nrow = J, ncol = 1)
 building_mat <- matrix(NA, nrow = J, ncol = 1)
 dist_village_mat <- matrix(NA, nrow = J, ncol = 1)
 elevation_mat <- matrix(NA, nrow = J, ncol = 1)
@@ -183,6 +195,8 @@ population_q_mat <- matrix(NA, nrow = J, ncol = 1)
 for(j in 1:J) {
   landuse_mat[[j]] <- raw_occ$landuse[[j]]
   village_mat[[j]] <- raw_occ$village[[j]]
+  setting_mat[[j]] <- raw_occ$setting[[j]]
+  group_landuse_mat[[j]] <- raw_occ$group_landuse[[j]]
   building_mat[[j]] <- raw_occ$distance_building[[j]]
   dist_village_mat[[j]] <- raw_occ$distance_centre[[j]]
   elevation_mat[[j]] <- raw_occ$elevation[[j]]
@@ -190,8 +204,11 @@ for(j in 1:J) {
   population_q_mat[[j]] <- raw_occ$pop_quartile[[j]]
 }
 
-occ_covs <- list(landuse = factor(landuse_mat),
+occ_covs <- list(landuse = factor(landuse_mat, levels = c("forest", "agriculture", "village")),
                  village = factor(village_mat),
+                 setting = factor(setting_mat, levels = c("rural", "peri-urban")),
+                 group_landuse = factor(group_landuse_mat, levels = c("forest", "agriculture - rural", "agriculture - peri-urban",
+                                                                      "village - rural", "village - peri-urban")),
                  distance_building = building_mat,
                  distance_village = dist_village_mat,
                  elevation = elevation_mat,
@@ -199,6 +216,7 @@ occ_covs <- list(landuse = factor(landuse_mat),
                  population_q = population_q_mat)
 
 write_rds(occ_covs, here("data", "observed_data", "occ_covs.rds"))
+write_rds(raw_occ, here("data", "observed_data", "occ_covariates.rds"))
 
 # Format site coordinates -------------------------------------------------
 coords <- read_rds(here("data", "observed_data", "site_coords.rds"))
@@ -279,6 +297,18 @@ det_ms_formula_3d <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 occ_ms_formula_3e <- ~ landuse + village
 # Detection
 det_ms_formula_3e <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+
+# Model structure 3f landuse, village and elevation
+# Occurrence
+occ_ms_formula_3f <- ~ landuse + village + scale(elevation)
+# Detection
+det_ms_formula_3f <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
+
+# Model structure 3g landuse, village and elevation
+# Occurrence
+occ_ms_formula_3g <- ~ landuse + village + scale(distance_building)
+# Detection
+det_ms_formula_3g <- ~ scale(precipitation) + moon_fraction + scale(trap_nights)
 
 # Model structure 4 (spatial)
 # Occurrence
@@ -675,7 +705,7 @@ waic_3e <- waicOcc(out_ms_3e)
 
 if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3e_sp_subset.rds"))) {
   
-  ppc_ms_out_3e <- ppcOcc(out_ms_3d, 'chi-squared', group = 1)
+  ppc_ms_out_3e <- ppcOcc(out_ms_3e, 'chi-squared', group = 1)
   
   write_rds(ppc_ms_out_3e, here("data", "observed_model_output", "ppc_ms_out_3e_sp_subset.rds"))
   
@@ -687,6 +717,98 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3e_sp_subset.r
 
 summary(ppc_ms_out_3e)
 
+## Model 3f ----------------------------------------------------------------
+
+# Run model 3f
+
+if(!file.exists(here("data", "observed_model_output", "model_3f_sp_subset.rds"))) {
+  
+  out_ms_3f <- msPGOcc(occ.formula = occ_ms_formula_3f, 
+                       det.formula = det_ms_formula_3f, 
+                       data = data_msom, 
+                       inits = ms_inits, 
+                       n.samples = 30000, 
+                       priors = ms_priors, 
+                       n.omp.threads = 1, 
+                       verbose = TRUE, 
+                       n.report = 6000, 
+                       n.burn = 10000,
+                       n.thin = 50, 
+                       n.chains = 3)
+  
+  write_rds(out_ms_3f, here("data", "observed_model_output", "model_3f_sp_subset.rds"))
+  
+} else {
+  
+  out_ms_3f <- read_rds(here("data", "observed_model_output", "model_3f_sp_subset.rds"))
+  
+}
+
+summary(out_ms_3f, level = "both")
+
+waic_3f <- waicOcc(out_ms_3f)
+
+
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3f_sp_subset.rds"))) {
+  
+  ppc_ms_out_3f <- ppcOcc(out_ms_3f, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_3f, here("data", "observed_model_output", "ppc_ms_out_3f_sp_subset.rds"))
+  
+} else {
+  
+  ppc_ms_out_3f <- read_rds(here("data", "observed_model_output", "ppc_ms_out_3f_sp_subset.rds"))
+  
+}
+
+summary(ppc_ms_out_3f)
+
+## Model 3g ----------------------------------------------------------------
+
+# Run model 3g
+
+if(!file.exists(here("data", "observed_model_output", "model_3g_sp_subset.rds"))) {
+  
+  out_ms_3g <- msPGOcc(occ.formula = occ_ms_formula_3g, 
+                       det.formula = det_ms_formula_3g, 
+                       data = data_msom, 
+                       inits = ms_inits, 
+                       n.samples = 30000, 
+                       priors = ms_priors, 
+                       n.omp.threads = 1, 
+                       verbose = TRUE, 
+                       n.report = 6000, 
+                       n.burn = 10000,
+                       n.thin = 50, 
+                       n.chains = 3)
+  
+  write_rds(out_ms_3g, here("data", "observed_model_output", "model_3g_sp_subset.rds"))
+  
+} else {
+  
+  out_ms_3g <- read_rds(here("data", "observed_model_output", "model_3g_sp_subset.rds"))
+  
+}
+
+summary(out_ms_3g, level = "both")
+
+waic_3g <- waicOcc(out_ms_3g)
+
+
+if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_3g_sp_subset.rds"))) {
+  
+  ppc_ms_out_3g <- ppcOcc(out_ms_3g, 'chi-squared', group = 1)
+  
+  write_rds(ppc_ms_out_3g, here("data", "observed_model_output", "ppc_ms_out_3g_sp_subset.rds"))
+  
+} else {
+  
+  ppc_ms_out_3g <- read_rds(here("data", "observed_model_output", "ppc_ms_out_3g_sp_subset.rds"))
+  
+}
+
+summary(ppc_ms_out_3g)
+
 ## Model 4 (Spatial) -------------------------------------------------------
 # Time to run ~ 36 minutes
 
@@ -696,8 +818,10 @@ if(!file.exists(here("data", "observed_model_output", "model_4_sp_subset.rds")))
                         det.formula = det_ms_formula_4, 
                         data = data_msom_spatial, 
                         inits = ms_inits_spatial, 
-                        n.batch = 400,
+                        n.batch = 500,
+                        n.burn = 3000,
                         batch.length = 25,
+                        n.thin = 20,
                         accept.rate = 0.43,
                         priors = ms_priors_spatial,
                         n.factors = n_factors,
@@ -706,8 +830,8 @@ if(!file.exists(here("data", "observed_model_output", "model_4_sp_subset.rds")))
                         verbose = TRUE, 
                         NNGP = TRUE,
                         n.report = 50, 
-                        n.chains = 3,
-                        tuning = list(phi = 0.5))
+                        n.chains = 4,
+                        tuning = list(phi = 2))
   
   write_rds(out_ms_4, here("data", "observed_model_output", "model_4_sp_subset.rds"))
   
@@ -728,9 +852,9 @@ if(!file.exists(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rd
   gc()
   
   ppc_ms_out_4 <- ppcOcc(out_ms_4, 'chi-squared', group = 1)
-  
+
   write_rds(ppc_ms_out_4, here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rds"))
-  
+
 } else {
   
   ppc_ms_out_4 <- read_rds(here("data", "observed_model_output", "ppc_ms_out_4_sp_subset.rds"))
@@ -750,257 +874,3 @@ all_models <- tibble(model = c("out_ms_int", "out_ms_1", "out_ms_2", "out_ms_3",
                       max_bpc = c(0.8, 0.92, 0.72, 0.77, 0.78, 0.77, 0.74, 0.73, 0.7),
                       min_bpc = c(0.18, 0.15, 0.13, 0.11, 0.1, 0.11, 0.13, 0.13, 0.13))
 
-
-
-# Interpretation ----------------------------------------------------------
-
-# Check mixing
-plot(out_ms_4$beta.samples, density = FALSE)
-
-plot(out_ms_4$alpha.samples, density = FALSE)
-
-# Posterior predictive checks
-# Bayesian p-value around 0.5 indicates adequate model fit, with values less than 0.1 or greater than 0.9 indicating poor fit.
-summary(ppc_ms_out_4)
-
-ppc.df <- tibble(ppv = c(rep(1:1200, times = 2)),
-                 "crocidura" = c(ppc_ms_out_4$fit.y[ ,1], ppc_ms_out_4$fit.y.rep[, 1]),
-                 "lophuromys" = c(ppc_ms_out_4$fit.y[ ,2], ppc_ms_out_4$fit.y.rep[, 2]),
-                 "mastomys" = c(ppc_ms_out_4$fit.y[ ,3], ppc_ms_out_4$fit.y.rep[, 3]),
-                 "minutoides" = c(ppc_ms_out_4$fit.y[ ,4], ppc_ms_out_4$fit.y.rep[, 4]),
-                 "musculus" = c(ppc_ms_out_4$fit.y[ ,5], ppc_ms_out_4$fit.y.rep[, 5]),
-                 "praomys" = c(ppc_ms_out_4$fit.y[ ,6], ppc_ms_out_4$fit.y.rep[, 6]),
-                 "rattus" = c(ppc_ms_out_4$fit.y[ ,7], ppc_ms_out_4$fit.y.rep[, 7]),
-                 fit = c(rep("True", times = 1200), rep("Fitted", times = 1200))) %>%
-  arrange(ppv) %>%
-  pivot_longer(cols = c("crocidura", "lophuromys", "mastomys", "minutoides", "musculus", "praomys", "rattus"), names_to = "Species",
-               values_to = "Fitted_value") %>%
-  pivot_wider(names_from = fit, values_from = "Fitted_value") %>%
-  mutate(discrepancy = case_when(True > Fitted ~ "True > Fit",
-                                 TRUE ~ "Fit > True"))
-
-ggplot(ppc.df, aes(x = True, y = Fitted, colour = discrepancy)) +
-  geom_point() +
-  geom_abline() +
-  facet_wrap(~ Species, scales = "free") +
-  theme_bw()
-
-
-# Probability of occurrence -----------------------------------------------
-
-d0 <- as.data.frame.table(out_ms_4$psi.samples)
-d1 <- d0 %>%
-  mutate(Site = as.integer(Var3),
-         Species = factor(Var2, labels = sp_codes)) %>%
-  group_by(Site, Species) %>%
-  summarise(Mean_psi = mean(Freq),
-            SD_psi = SD(Freq))
-
-# Model checks
-
-check_model <- left_join(d1, y_long %>%
-                           rename(Site = site_code,
-                                  Species = species) %>%
-                           group_by(Site, Species) %>%
-                           summarise(observed = sum(count)),
-                         by = c("Site", "Species")) %>%
-  mutate(observed_bin = case_when(observed > 0 ~ 1,
-                                  is.na(observed) ~ 0))
-
-visualise_check <- ggplot(check_model) +
-  geom_point(aes(x = Mean_psi, y = observed_bin)) +
-  facet_wrap(~ Species, ncol = 1)
-
-# Interpretation of species occurrence by landuse
-species_order_plots <- c("Mastomys spp", "Rattus spp", "Mus musculus", "Crocidura spp", "Praomys spp", "Lophuromys spp", "Mus minutoides")
-
-## Species occurrence by landuse -------------------------------------------
-
-plot_m4 <- d1 %>%
-  left_join(raw_occ, by = c("Site" = "site_code")) %>%
-  mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village"), 
-                          labels = c("Forest", "Agriculture", "Village")),
-         Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
-                          levels = species_order_plots),
-         village = str_to_sentence(village),
-         peri_urban = case_when(village == "Lambayama" ~ "Peri-Urban",
-                                TRUE ~ "Rural"))
-
-landuse_plot <- plot_m4 %>%
-  ggplot() +
-  geom_jitter(aes(y = Mean_psi, x = landuse, colour = landuse), alpha = 0.2) + 
-  geom_violin(aes(y = Mean_psi, x = landuse, fill = landuse)) + 
-  facet_wrap(~ Species, nrow = 2) +
-  scale_fill_manual(values = landuse_palette) +
-  scale_colour_manual(values = landuse_palette) +
-  guides(colour = "none") +
-  theme_bw() +
-  labs(y = "Probability of occurrence (ψ)",
-       x = element_blank(),
-       fill = element_blank())
-
-save_plot(plot = landuse_plot, filename = here("output", "Figure_3.png"), base_width = 11, base_height = 9)
-
-summaries <- plot_m4 %>%
-  group_by(Species, village, landuse) %>%
-  summarise(median_psi = median(Mean_psi),
-            IQR_lower = IQR(Mean_psi))
-
-
-## Species occurrence by landuse split on peri-urban/rural -----------------
-
-urbanisation_by_landuse <- plot_m4 %>%
-  ggplot() +
-  geom_point(aes(y = Mean_psi, x = peri_urban, colour = landuse, fill = landuse), alpha = 0.2, position = position_jitterdodge(dodge.width = 0.9)) + 
-  geom_violin(aes(y = Mean_psi, x = peri_urban, fill = landuse)) + 
-  facet_wrap(~ Species, nrow = 2) +
-  scale_fill_manual(values = landuse_palette) +
-  scale_colour_manual(values = landuse_palette) +
-  theme_bw() +
-  guides(colour = "none") +
-  labs(y = "Probability of occurrence (ψ)",
-       x = element_blank(),
-       fill = "Landuse",
-       colour = element_blank())
-
-save_plot(plot = urbanisation_by_landuse, filename = here("output", "Figure_4.png"), base_width = 8, base_height = 8)
-
-
-## Species occurrence by distance from building and elevation ----------------------------
-
-scaling_pred <- raw_occ %>%
-  mutate(scaled_distance_building = scale(distance_building)[,1],
-         scaled_elevation = scale(elevation)[,1],
-         bin_forest = case_when(landuse == "forest" ~ 1,
-                                TRUE ~ 0),
-         bin_village = case_when(landuse == "village" ~ 1,
-                                 TRUE ~ 0),
-         bin_lal = case_when(village == "lalehun" ~ 1,
-                             TRUE ~ 0),
-         bin_lam = case_when(village == "lambayama" ~ 1,
-                             TRUE ~ 0),
-         bin_sei = case_when(village == "seilama" ~ 1,
-                             TRUE ~ 0),
-         intercept = 1)
-
-# Marginal effect of distance_building
-distance_plot <- plot_m4 %>%
-  ungroup() %>%
-  mutate(scaled_distance_building = scale(distance_building)[, 1]) %>%
-  ggplot(aes(x = scaled_distance_building, y = Mean_psi, colour = landuse, group = landuse)) +
-  geom_point() +
-  geom_smooth() +
-  facet_wrap(~ Species + village) +
-  theme_bw()
-
-save_plot(plot = distance_plot, filename = here("output", "distance_marginal.png"), base_width = 8, base_height = 8)
-
-# Marginal effect of elevation
-elevation_plot <- plot_m4 %>%
-  ungroup() %>%
-  mutate(scaled_elevation = scale(elevation)[, 1]) %>%
-  ggplot(aes(x = scaled_elevation, y = Mean_psi, colour = landuse, group = landuse)) +
-  geom_point() +
-  geom_smooth() +
-  facet_wrap(~ Species + village) +
-  theme_bw()
-
-save_plot(plot = elevation_plot, filename = here("output", "elevation_marginal.png"), base_width = 8, base_height = 8)
-
-# Probability of detection ------------------------------------------------
-
-d2 <- as.data.frame.table(out_ms_4$z.samples)
-d3 <- d2 %>%
-  mutate(Site = as.integer(Var3),
-         Species = factor(Var2, labels = sp_codes)) %>%
-  group_by(Site, Species) %>%
-  summarise(Mean_z = mean(Freq),
-            SD_z = SD(Freq))
-
-precipitation <- scale(c(det_covs$precipitation))
-min_precipitation <- min(precipitation, na.rm = TRUE)
-max_precipitation <- max(precipitation, na.rm = TRUE)
-pred_precipitation <- seq(from = min_precipitation, to = max_precipitation, length.out = 100)
-mean_precipitation <- mean(pred_precipitation, na.rm = TRUE)
-
-moon <- c(det_covs$moon_fraction)
-min_moon <- min(moon, na.rm = TRUE)
-max_moon <- max(moon, na.rm = TRUE)
-pred_moon <- seq(from = min_moon, to = max_moon, length.out = 100)
-mean_moon <- mean(moon, na.rm = TRUE)
-
-tn <- scale(c(det_covs$trap_nights))
-min_trap_nights <- min(tn, na.rm = TRUE)
-max_trap_nights <- max(tn, na.rm = TRUE)
-pred_trap_nights <- seq(from = min_trap_nights, to = max_trap_nights, length.out = 100)
-mean_trap_nights <- mean(pred_trap_nights, na.rm = TRUE)
-
-
-## Probability of detection - precipitation --------------------------------
-
-precipitation_prediction <- cbind(1, pred_precipitation, mean_moon, mean_trap_nights)
-out_detection_precipitation <- predict(out_ms_4, precipitation_prediction, type = "detection")
-
-precipitation_estimates <- c(apply(out_detection_precipitation$p.0.samples, c(2, 3), mean))
-plot_precipitation <- data.frame(detection_probability = precipitation_estimates,
-                                 Species = rep(sp_codes, 100),
-                                 scaled_precipitation = rep(pred_precipitation, each = N)) %>%
-  mutate(Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
-                          levels = species_order_plots),
-         Precipitation = scaled_precipitation * attr(precipitation, "scaled:scale") + attr(precipitation, 'scaled:center'))
-
-precipitation_plot <- plot_precipitation %>%
-  ggplot() +
-  geom_line(aes(x = Precipitation, y = detection_probability)) +
-  theme_bw() + 
-  scale_y_continuous(limits = c(0, 1)) + 
-  facet_wrap(~ Species) + 
-  labs(x = 'Mean monthly rainfall (mm)', y = 'Detection Probability') 
-
-
-save_plot(plot = precipitation_plot, filename = here("output", "precipitation_marginal.png"), base_width = 8, base_height = 8)
-
-## Probability of detection - moon --------------------------------
-
-moon_prediction <- cbind(1, mean_precipitation, pred_moon, mean_trap_nights)
-out_detection_moon <- predict(out_ms_4, moon_prediction, type = "detection")
-
-moon_estimates <- c(apply(out_detection_moon$p.0.samples, c(2, 3), mean))
-plot_moon <- data.frame(detection_probability = moon_estimates,
-                                 Species = rep(sp_codes, 100),
-                                 Moon = rep(pred_moon, each = N)) %>%
-  mutate(Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
-                          levels = species_order_plots))
-
-moon_plot <- plot_moon %>%
-  ggplot() +
-  geom_line(aes(x = Moon, y = detection_probability)) +
-  theme_bw() + 
-  scale_y_continuous(limits = c(0, 1)) + 
-  facet_wrap(~ Species) + 
-  labs(x = 'Moon fraction', y = 'Detection Probability')
-
-save_plot(plot = moon_plot, filename = here("output", "moon_marginal.png"), base_width = 8, base_height = 8)
-
-## Probability of detection - trap night --------------------------------
-
-trap_night_prediction <- cbind(1, mean_precipitation, mean_moon, pred_trap_nights)
-out_detection_trap_night <- predict(out_ms_4, trap_night_prediction, type = "detection")
-
-trap_night_estimates <- c(apply(out_detection_trap_night$p.0.samples, c(2, 3), mean))
-plot_trap_night <- data.frame(detection_probability = trap_night_estimates,
-                                 Species = rep(sp_codes, 100),
-                                 scaled_trap_night = rep(pred_trap_nights, each = N)) %>%
-  mutate(Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
-                          levels = species_order_plots),
-         trap_night = scaled_trap_night * attr(tn, "scaled:scale") + attr(tn, 'scaled:center'))
-
-trap_night_plot <- plot_trap_night %>%
-  ggplot() +
-  geom_line(aes(x = trap_night, y = detection_probability)) +
-  theme_bw() + 
-  scale_y_continuous(limits = c(0, 1)) + 
-  facet_wrap(~ Species) + 
-  labs(x = 'Trap nights', y = 'Detection Probability') 
-
-save_plot(plot = trap_night_plot, filename = here("output", "tn_marginal.png"), base_width = 8, base_height = 8)

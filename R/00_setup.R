@@ -45,7 +45,9 @@ SL_UTM <- "EPSG:32629"
 village_palette <- RColorBrewer::brewer.pal(n = 4, name = "Set1")
 names(village_palette) <-  c("Lalehun", "Seilama", "Lambayama", "Baiama")
 
-landuse_palette <- c("#00913a", "#FEC44F", "#a13b9e")
+landuse_palette <- c("#00913A", "#FEC44F", "#A13B9E")
 names(landuse_palette) <- c("Forest", "Agriculture", "Village")
 
+group_landuse_palette <- c("#00913a", "#FEC44F", "#F7A820", "#A13B9E", "#5407A6")
+names(group_landuse_palette) <- c("Forest", "Agriculture - Rural", "Agriculture - Peri-urban", "Village - Rural", "Village - Peri-urban")
 season <- tibble(visit = 1:8, season = c(rep("Dry", 2), rep("Rainy", 2), rep("Dry", 2),rep("Rainy", 2)))
