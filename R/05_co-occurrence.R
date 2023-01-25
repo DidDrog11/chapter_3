@@ -1,4 +1,6 @@
 source(here::here("R", "00_setup.R"))
+install.packages("ggstatsplot")
+library(ggstatsplot)
 
 # Load data ---------------------------------------------------------------
 
@@ -19,6 +21,10 @@ final_ppc <- read_rds(here("data", "observed_model_output", "model_dev", "final_
 observed <- y_long %>%
   left_join(occ_covs) %>%
   janitor::tabyl(species, landuse)
+
+observed_stratified <- y_long %>%
+  left_join(occ_covs) %>%
+  janitor::tabyl(species, setting, landuse)
 
 psi_list <- as.data.frame.table(final_model$psi.samples) %>%
   mutate(Site = as.integer(Var3),
@@ -41,6 +47,9 @@ psi_species <- lapply(psi_list, function(x) {
 }) %>%
   bind_rows()
 
+
+# Correlations for co-occurrence ------------------------------------------
+
 cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_spp", species_2 = "rattus_spp") {
   
   paired_df <- data %>%
@@ -59,18 +68,19 @@ cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_spp", sp
     labs(x = str_to_sentence(str_replace_all(species_1, "_", " ")),
          y = str_to_sentence(str_replace_all(species_2, "_", " ")),
          colour = "Stratified landuse")
-
+  
   sp_1 <- paired_df %>%
     pull(species_1)
   sp_2 <- paired_df %>%
     pull(species_2)
   
   correlation_test_combined <- tibble(species_1 = species_1,
-         species_2 = species_2,
-         spearman_rho = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$estimate,
-         spearman_p = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$p.value)
+                                      species_2 = species_2,
+                                      spearman_rho = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$estimate,
+                                      spearman_p = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$p.value)
   
-  if(observed %>% filter(species == species_1) %>% pull(forest) > 0 & observed %>% filter(species == species_2) %>% pull(forest) > 0) {
+  if(observed %>% filter(species == species_1) %>% pull(forest) > 0 & 
+     observed %>% filter(species == species_2) %>% pull(forest) > 0) {
     
     sp_1 <- paired_df %>%
       filter(str_detect(group_landuse, "Forest")) %>%
@@ -80,10 +90,10 @@ cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_spp", sp
       pull(species_2)
     
     correlation_test_forest <- tibble(landuse = "Forest",
-                               species_1 = species_1,
-                               species_2 = species_2,
-                               spearman_rho = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$estimate,
-                               spearman_p = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$p.value)
+                                      species_1 = species_1,
+                                      species_2 = species_2,
+                                      spearman_rho = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$estimate,
+                                      spearman_p = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$p.value)
   } else { 
     
     correlation_test_forest <- tibble(landuse = "Forest",
@@ -94,21 +104,23 @@ cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_spp", sp
     
   }
   
-  if(observed %>% filter(species == species_1) %>% pull(agriculture) > 0 & observed %>% filter(species == species_2) %>% pull(agriculture) > 0) {
+  if(observed %>% filter(species == species_1) %>% pull(agriculture) > 0 & 
+     observed %>% filter(species == species_2) %>% pull(agriculture) > 0) {
     
-  sp_1 <- paired_df %>%
-    filter(str_detect(group_landuse, "Agriculture")) %>%
-    pull(species_1)
-  sp_2 <- paired_df %>%
-    filter(str_detect(group_landuse, "Agriculture")) %>%
-    pull(species_2)
-  
-  correlation_test_agriculture <- tibble(landuse = "Agriculture",
-                                         species_1 = species_1,
-                                         species_2 = species_2,
-                                         spearman_rho = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$estimate,
-                                         spearman_p = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$p.value)
-  
+    sp_1 <- paired_df %>%
+      filter(str_detect(group_landuse, "Agriculture")) %>%
+      pull(species_1)
+    sp_2 <- paired_df %>%
+      filter(str_detect(group_landuse, "Agriculture")) %>%
+      pull(species_2)
+    
+    correlation_test_agriculture <- tibble(landuse = "Agriculture",
+                                           species_1 = species_1,
+                                           species_2 = species_2,
+                                           spearman_rho = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$estimate,
+                                           spearman_p = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$p.value)
+    
+    
   } else {
     
     correlation_test_agriculture <- tibble(landuse = "Agriculture",
@@ -119,21 +131,22 @@ cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_spp", sp
     
   }
   
-  if(observed %>% filter(species == species_1) %>% pull(village) > 0 & observed %>% filter(species == species_2) %>% pull(village) > 0) {
+  if(observed %>% filter(species == species_1) %>% pull(village) > 0 & 
+     observed %>% filter(species == species_2) %>% pull(village) > 0) {
     
-  sp_1 <- paired_df %>%
-    filter(str_detect(group_landuse, "Village")) %>%
-    pull(species_1)
-  sp_2 <- paired_df %>%
-    filter(str_detect(group_landuse, "Village")) %>%
-    pull(species_2)
-  
-  correlation_test_village <- tibble(landuse = "Village",
-                                     species_1 = species_1,
-                                     species_2 = species_2,
-                                     spearman_rho = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$estimate,
-                                     spearman_p = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$p.value)
-  
+    sp_1 <- paired_df %>%
+      filter(str_detect(group_landuse, "Village")) %>%
+      pull(species_1)
+    sp_2 <- paired_df %>%
+      filter(str_detect(group_landuse, "Village")) %>%
+      pull(species_2)
+    
+    correlation_test_village <- tibble(landuse = "Village",
+                                       species_1 = species_1,
+                                       species_2 = species_2,
+                                       spearman_rho = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$estimate,
+                                       spearman_p = cor.test(x = sp_1, y = sp_2, alternative = "two.sided", method = "spearman")$p.value)
+    
   } else {
     
     correlation_test_village <- tibble(landuse = "Village",
@@ -151,10 +164,10 @@ cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_spp", sp
   return(list(correlation_plot = correlation,
               correlation_test_combined = correlation_test_combined,
               correlation_tests = correlation_tests))
-
+  
 }
 
-# M. natalensis co-occurrence ---------------------------------------------
+# Correlations by landuse type ---------------------------------------------
 species_list <- list()
 sp_codes_2 <- c("mastomys_spp", "rattus_spp", "mus_musculus", "crocidura_spp", "praomys_spp", "lophuromys_spp", "mus_minutoides")
 
@@ -197,7 +210,7 @@ correlation_df <- lapply(correlation_list, function(x) {
 }) %>%
   bind_rows() %>%
   filter(species_1 != species_2) %>%
-  mutate(sig = case_when(spearman_p <= 0.001 ~ TRUE,
+  mutate(sig = case_when(spearman_p <= 0.005 ~ TRUE,
                          is.na(spearman_p) ~ NA,
                          TRUE ~ FALSE),
          species_1 = factor(species_1, levels = c("mastomys_spp", "rattus_spp", "mus_musculus", "crocidura_spp", "praomys_spp", "lophuromys_spp", "mus_minutoides"),
@@ -209,13 +222,16 @@ correlation_df <- lapply(correlation_list, function(x) {
          strength = cut(spearman_rho, breaks = c(-1, -0.8, -0.6, -0.4, -0.2, -0.05, 0.05, 0.2, 0.4, 0.6, 0.8, 1),
                         labels = c("Very strong -ve", "Strong -ve", "Moderate -ve", "Weak -ve", "Very weak -ve", "No correlation", "Very weak +ve", "Weak +ve", "Moderate +ve", "Strong +ve", "Very strong +ve")),
          correlation_coef = round(spearman_rho, 2),
-         pos_neg = if(correlation_coef < 0) ~ FALSE)
+         pos_cor = case_when(correlation_coef < 0 ~ FALSE,
+                             is.na(correlation_coef) ~ NA,
+                             TRUE ~ TRUE))
 
 correlation_plot <- correlation_df %>%
   ggplot() +
   geom_tile(aes(x = species_2, y = species_1, fill = strength)) +
   geom_label(data = correlation_df %>%
-               filter(sig == TRUE), 
+               filter(sig == TRUE) %>%
+               mutate(correlation_coef = paste0(correlation_coef, "*")), 
              aes(x = species_2, y = species_1, label = correlation_coef), fontface = "bold") +
   geom_label(data = correlation_df %>%
                filter(sig == FALSE), 
@@ -231,3 +247,5 @@ correlation_plot <- correlation_df %>%
   theme_bw()
 
 save_plot(correlation_plot, filename = here("output", "Figure_5.png"), base_height = 12, base_width = 8)
+
+

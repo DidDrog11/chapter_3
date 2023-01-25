@@ -61,12 +61,11 @@ ppc_vis <- function(data = final_ppc) {
 ppc_vis()
 
 # Coefficient plots -------------------------------------------------------
-source(here("R", "extract_coefficient_function.R"))
+# source(here("R", "extract_coefficient_function.R"))
 
-coefficients <- extract_coeff(object = final_model)
+# coefficients <- extract_coeff(object = final_model)
 
 # Probability of occurrence -----------------------------------------------
-species_order_plots <- c("Mastomys spp", "Rattus spp", "Mus musculus", "Crocidura spp", "Praomys spp", "Lophuromys spp", "Mus minutoides")
 
 ## Species occurrence plots ------------------------------------------
 ## Plots the probability of occurrence of each species at each grid cell
@@ -117,9 +116,7 @@ species_plots <- function(data = final_model) {
     guides(colour = guide_legend(override.aes = list(alpha = 1))) +
     labs(y = "Probability of occurrence (ψ)",
          x = element_blank(),
-         colour = "Landuse",
-         title = "Probability of occurrence of each species at each grid cell",
-         caption = "N grid cells = 1,939")
+         colour = "Landuse")
   
   landuse_urbanisation_plot <- landuse_df %>%
     ggplot() +
@@ -130,10 +127,7 @@ species_plots <- function(data = final_model) {
     guides(colour = guide_legend(override.aes = list(alpha = 1))) +
     labs(y = "Probability of occurrence (ψ)",
          x = element_blank(),
-         colour = "Landuse",
-         title = "Probability of occurrence of each species at each grid cell",
-         subtitle = "Stratified by Peri-urban/Rural setting",
-         caption = "N grid cells = 1,939")
+         colour = "Landuse")
   
   return(list(species_data = landuse_df,
               landuse_plot = landuse_plot,
@@ -169,6 +163,9 @@ save_plot(plot = plots$landuse_plot, filename = here("output", "Figure_3.png"), 
 save_plot(plot = plots$landuse_urbanisation_plot, filename = here("output", "Figure_4.png"), base_width = 8, base_height = 8)
 
 
+# Marginal effects occurrence ---------------------------------------------
+
+
 ## Species occurrence by distance from building and elevation ----------------------------
 
 scaling_pred <- occ_covs %>%
@@ -200,7 +197,7 @@ marginal_occurrence <- function(data = plots$species_data) {
     x %>%
       ggplot() +
       geom_point(aes(x = scaled_distance_building, y = Psi)) +
-      geom_smooth(aes(x = scaled_distance_building, y = Psi)) +
+      geom_smooth(aes(x = scaled_distance_building, y = Psi), method = "loess") +
       scale_x_continuous(n.breaks = 4) +
       facet_wrap(~ Species, nrow = 2) +
       labs(title = paste(str_to_sentence(unique(x$village))),
@@ -209,14 +206,7 @@ marginal_occurrence <- function(data = plots$species_data) {
       theme_bw()
   })
   
-  plotgrid = plot_grid(plotlist = distance_plots)
-  plottitle = ggdraw() +
-    draw_label("Probability of occurrence of species by distance from building at each study village",
-               fontface = "bold",
-               x = 0,
-               hjust = 0) +
-    theme(plot.margin = margin(0, 0, 0, 7))
-  combined_distance_plot <- plot_grid(plottitle, plotgrid, ncol = 1, rel_heights = c(0.1, 1))
+  combined_distance_plot <- plot_grid(plotlist = distance_plots)
 
   elevation_plots <- lapply(list_data, function(x) {
     
@@ -232,14 +222,7 @@ marginal_occurrence <- function(data = plots$species_data) {
     
   })
   
-  plotgrid = plot_grid(plotlist = elevation_plots)
-  plottitle = ggdraw() +
-    draw_label("Probability of occurrence of species by elevation at each study village",
-               fontface = "bold",
-               x = 0,
-               hjust = 0) +
-    theme(plot.margin = margin(0, 0, 0, 7))
-  combined_elevation_plot <- plot_grid(plottitle, plotgrid, ncol = 1, rel_heights = c(0.1, 1))  
+  combined_elevation_plot <- plot_grid(plotlist = elevation_plots)
   
   return(list(distance = combined_distance_plot,
               elevation = combined_elevation_plot))
@@ -248,10 +231,10 @@ marginal_occurrence <- function(data = plots$species_data) {
 
 occurrence_marginal_effects <- marginal_occurrence()
 
-save_plot(plot = occurrence_marginal_effects$distance, filename = here("output", "distance_marginal.png"), base_width = 11, base_height = 8)
-save_plot(plot = occurrence_marginal_effects$elevation, filename = here("output", "elevation_marginal.png"), base_width = 11, base_height = 8)
+save_plot(plot = occurrence_marginal_effects$distance, filename = here("output", "Supplementary_material_9a.png"), base_width = 11, base_height = 8)
+save_plot(plot = occurrence_marginal_effects$elevation, filename = here("output", "Supplementary_material_9b.png"), base_width = 11, base_height = 8)
 
-# Probability of detection ------------------------------------------------
+# Marginal effects detection --------------------------------------------------
 marginal_detection <- function(data = final_model) {
   
   # Precipitation scaled values
@@ -318,9 +301,9 @@ marginal_detection <- function(data = final_model) {
     theme_bw() + 
     scale_y_continuous(limits = c(0, 1)) + 
     facet_wrap(~ Species) + 
-    labs(title = "Marginal effect of rainfall on detection",
-         x = "Mean monthly rainfall (mm)", 
-         y = "Detection Probability") 
+    labs(x = "Mean monthly rainfall (mm)", 
+         y = paste0("Detection Probability (*p*)")) +
+    theme(axis.title.y = ggtext::element_markdown())
   
   # Moon on detection
   moon_prediction <- cbind(1, mean_precipitation, pred_moon, mean_trap_nights)
@@ -364,9 +347,9 @@ marginal_detection <- function(data = final_model) {
     theme_bw() + 
     scale_y_continuous(limits = c(0, 1)) + 
     facet_wrap(~ Species) + 
-    labs(title = "Marginal effect of moon fraction on detection",
-         x = "Fraction of full moon", 
-         y = "Detection Probability") 
+    labs(x = "Fraction of full moon", 
+         y = paste0("Detection Probability (*p*)")) +
+    theme(axis.title.y = ggtext::element_markdown())
   
   # TN on detection
   tn_prediction <- cbind(1, mean_precipitation, mean_moon, pred_trap_nights)
@@ -411,11 +394,11 @@ marginal_detection <- function(data = final_model) {
     theme_bw() + 
     scale_y_continuous(limits = c(0, 1)) + 
     facet_wrap(~ Species) + 
-    labs(title = "Marginal effect of number of trap nights on detection",
-         x = "Number of trap nights", 
-         y = "Detection Probability") 
-
-
+    labs(x = "Number of trap nights (TN)", 
+         y = paste0("Detection Probability (*p*)")) +
+    theme(axis.title.y = ggtext::element_markdown())
+  
+  
   return(list(detection_precipitation = precipitation_plot,
               detection_moon = moon_plot,
               detection_trap_nights = tn_plot))
@@ -424,6 +407,6 @@ marginal_detection <- function(data = final_model) {
 
 marginal_detection_plots <- marginal_detection()
 
-save_plot(plot = marginal_detection_plots$detection_precipitation, filename = here("output", "precipitation_marginal.png"), base_width = 8, base_height = 8)
-save_plot(plot = marginal_detection_plots$detection_moon, filename = here("output", "moon_marginal.png"), base_width = 8, base_height = 8)
-save_plot(plot = marginal_detection_plots$detection_trap_nights, filename = here("output", "tn_marginal.png"), base_width = 8, base_height = 8)
+save_plot(plot = marginal_detection_plots$detection_precipitation, filename = here("output", "Supplementary_material_9c.png"), base_width = 8, base_height = 8)
+save_plot(plot = marginal_detection_plots$detection_moon, filename = here("output", "Supplementary_material_9d.png"), base_width = 8, base_height = 8)
+save_plot(plot = marginal_detection_plots$detection_trap_nights, filename = here("output", "Supplementary_material_9e.png"), base_width = 8, base_height = 8)

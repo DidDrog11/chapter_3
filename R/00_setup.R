@@ -8,16 +8,13 @@ pkgs =
     "fastDummies",
     "flextable",
     "geodata",
-    "ggraph",
     "ggridges",
     "ggspatial",
+    "ggtext",
     "googledrive",
     "here",
-    "igraph",
-    "INLA",
     "lubridate",
     "mapview",
-    "modelr",
     "osmdata",
     "RColorBrewer",
     "RhpcBLASctl",
@@ -33,7 +30,6 @@ pkgs =
     "tidygraph",
     "tidyterra",
     "tidyverse",
-    "tmap",
     "vegan"
   )
 
@@ -47,6 +43,11 @@ names(village_palette) <-  c("Lalehun", "Seilama", "Lambayama", "Baiama")
 
 landuse_palette <- c("#00913A", "#FEC44F", "#A13B9E")
 names(landuse_palette) <- c("Forest", "Agriculture", "Village")
+
+all_species_order <- c("Mastomys spp", "Rattus spp", "Mus musculus", "Crocidura spp", "Praomys spp", "Lophuromys spp", "Mus minutoides", "Lemniscomys spp", "Malacomys spp", "Hylomyscus spp",
+                       "Hybomys spp", "Dasymys spp", "Gerbillinae spp", "Gerbilliscus spp")
+
+species_order_plots <- c("Mastomys spp", "Rattus spp", "Mus musculus", "Crocidura spp", "Praomys spp", "Lophuromys spp", "Mus minutoides")
 
 group_landuse_palette <- c("#00913a", "#FEC44F", "#F7A820", "#A13B9E", "#5407A6")
 names(group_landuse_palette) <- c("Forest", "Agriculture - Rural", "Agriculture - Peri-urban", "Village - Rural", "Village - Peri-urban")
