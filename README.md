@@ -37,20 +37,16 @@ This chapter will describe the results of the rodent trapping study that was imp
 ### Future changes
 
   - [x] Group agriculture and fallow, group village sites
-  - [ ] Trial of rarely detected species as grouped by other - This doesn't make sense as some of the other species will be commensal/generalist/specialist
+  - [x] Trial of rarely detected species as grouped by other - This doesn't make sense as some of the other species will be commensal/generalist/specialist
   - [x] Run a spatial occupancy model
   - [x] Remove network section which will be moved to chapter 4
   - [x] First component of analysis is species occurrence across landuse gradient
   - [x] Second component is species occurrence patterns across landuse gradient by urban scale
-  - [ ] Should the model use human population density as a random effect rather than village as a fixed effect?
-  - [ ] Do I want to predict probability of occupancy across Eastern Sierra Leone or limit it to the study areas? Prediction may be in effect replicating what I plan to do in chapter 5.
-  - [ ] Does it make more sense to use the probability of occupancy data to explore co-occurrence as that way it is using the same modelling framework throughout?
-  - [ ] Update introduction - add paragraph about species life histories generalist vs. specialist
-  - [ ] Trapping protocol as supplementary, more specific detail into the methods for data collection  section
+  - [x] Should the model use human population density as a random effect rather than village as a fixed effect?
+  - [x] Does it make more sense to use the probability of occupancy data to explore co-occurrence as that way it is using the same modelling framework throughout?
+  - [x] Update introduction
+  - [x] Trapping protocol as supplementary, more specific detail into the methods for data collection  section
   - [x] Consistent definition of village site, grid site and landuse site
   - [x] Add species accumulation curves by village and by landuse setting
   - [x] Explore other options for co-occurrence
   
-### Discussion points
-
-  - [ ] 
