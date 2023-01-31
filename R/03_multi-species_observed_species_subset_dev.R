@@ -15,6 +15,8 @@ sites <- observed_data$sites_grids$select_site %>%
 
 trap_nights <- read_rds(here("data", "observed_data", "trap_nights.rds"))
 
+data_for_4 <- write_rds(x = list(detections = detections, sites = sites), here("data", "data_for_export", "chapter_4_extract.rds"))
+
 # Produce y --------------------------------------
 
 # produce a long format of detections with a single record per site, visit  #
