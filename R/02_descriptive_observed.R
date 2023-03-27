@@ -9,6 +9,7 @@ sites <- observed_data$sites_grids$select_site %>%
 
 # This dataframe includes a row for each rodent individual trapped during the study. 
 detections <- observed_data$detections %>%
+  rename(trap_id = trap_uid) %>%
   left_join(sites %>%
               select(site_id, trap_id, date_set))
 
@@ -98,8 +99,7 @@ trap_areas <- trap_locations %>%
 
 trap_areas$area <- st_area(trap_areas$geometry)
 
-tibble(trap_areas %>%
-  filter(grid_number != 7)) %>% 
+tibble(trap_areas) %>% 
   summarise(mean(area))
 
 # Description trapping locations ------------------------------------------
@@ -281,6 +281,33 @@ fig_2 <- fig_2_df %>%
   theme_bw()
 
 save_plot(plot = fig_2, filename = here("output", "Figure_2.png"), base_width = 13, base_height = 7)
+
+fig_2_by_landuse <- detections %>%
+  left_join(sites, detections,
+            by = c("village", "visit", "grid_number", "trap_id", "site_id", "date_set")) %>%
+  group_by(landuse, clean_names) %>%
+  summarise(n_detected = n()) %>%
+  left_join(trap_success_rate_df %>%
+              select(-trap_success) %>%
+              group_by(landuse) %>%
+              summarise(tn = sum(tn)), by = c("landuse")) %>%
+  rowwise() %>%
+  mutate(detection_rate = n_detected/tn * 1000,
+         clean_names = str_to_sentence(str_replace(clean_names, "_", " ")),
+         landuse = factor(str_to_sentence(landuse), levels = c("Forest", "Agriculture", "Village")),
+         n_detected = paste0("N = ", n_detected))
+
+fig_2_landuse <- fig_2_by_landuse %>%
+  ggplot(aes(x = landuse, y = clean_names, fill = detection_rate, label = n_detected)) +
+  geom_tile() +
+  geom_label(fill = "white") +
+  scale_fill_viridis_c(trans = scales::log10_trans(), breaks = scales::breaks_log()) +
+  labs(y = element_blank(),
+       fill = "Detection rate \nper 1,000 trap nights",
+       x = "Landuse") +
+  theme_bw()
+
+save_plot(plot = fig_2_landuse, filename = here("output", "Figure_2_landuse_only.png"), base_width = 13, base_height = 7)
 
 # Description trap rate by season ----------------------------------------------
 
