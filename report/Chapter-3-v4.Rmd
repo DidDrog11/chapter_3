@@ -1,0 +1,392 @@
+---
+title: "Land use gradients drive spatial variation in Lassa fever host communities in Eastern Sierra Leone."
+author:
+  - name: "David Simons"
+    url: https://github.com/diddrog11/rodent_trapping
+    affiliation: The Royal Veterinary College, London, UK
+    affiliation_url: https://www.rvc.ac.uk
+    orcid_id: 0000-0001-9655-1656
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    fig_caption: yes
+bibliography: citations.bib
+categories:
+  - Lassa
+header-includes:
+    - \usepackage{caption}
+---
+
+```{r setup, include=FALSE, quietly=TRUE}
+knitr::opts_chunk$set(
+	echo = FALSE,
+	warning = FALSE
+)
+
+library(flextable)
+library(here)
+library(tidyverse)
+
+set_flextable_defaults(fonts_ignore=TRUE)
+```
+
+7,000 words for everything
+
+# Author details.
+
+David Simons ^1,2,3^, Rory Gibb ^2^, Umaru Bangura ^4,5^, Dianah Sondufu ^5^, Joyce Lamin ^5^, James Koninga ^6^, Momoh \* ^6^, Mike Dawson ^5^, Joseph Lahai ^5^, Rashid Ansumana ^5^, Deborah Watson-Jones ^3,7^, Richard Kock ^1^, Kate E. Jones ^2^.
+
+^1^ Centre for Emerging, Endemic and Exotic Diseases, The Royal Veterinary College, London, United Kingdom
+
+^2^ Centre for Biodiversity and Environment Research, University College London, London, United Kingdom
+
+^3^ Clinical Research Department, London School of Hygiene and Tropical Medicine, London, United Kingdom
+
+^4^ Bernard-Nocht Institute for Tropical Medicine
+
+^5^ Njala University, Bo, Sierra Leone
+
+^6^ Kenema Government Hospital, Kenema, Sierra Leone
+
+^7^ Mwanza Intervention Trials Unit, National Institute for Medical Research, Mwanza, Tanzania
+
+
+# Abstract
+
+350 words, simple, factual, numbered statements. Point 1 context and need for work, 2 the approach and methods used, next 2-3 outline the main results. Finally the wider implications and relevance to policy **Policy implications**.
+
+The natal multimammate mouse (*Mastomys natalensis*) is the primary reservoir species of the zoonotic infectious disease, Lassa fever (*Lassa mammarenavirus*). This disease is endemic to Sierra Leone with the highest incidence of human infection reported from the Eastern Province. The spatial occurrence and abundance of this rodent species is regulated by the human environment and biotic interactions within small mammal communities, little is known about these effects even in highly endemic areas of Lassa fever. We conducted a rodent trapping study at four village study sites between 2020-2023, comprising 40,152 trap nights to understand how *M. natalensis* is distributed across a gradient of landuse types and how this may be influenced by the broad small mammal community structure. We conducted a Bayesian multiple species occupancy model, accounting for imperfect detection, to test the hypothesis that *M. natalensis* were more likely to occur within human dominated landuse types. We found that *M. natalensis* occurrence increased from less to more human dominated landscapes. We further found that this effect was not replicated across scales as the probability of occurrence in peri-urban settings was lower than in rural settings. Interactions within the small mammal community appeared to moderate the occurrence of *M. natalensis*, with the presence of *Mus musculus*, but not *Rattus rattus* reducing the probability of occurrence of *M. natalensis*. This finding may explain prior observations of lower-than-expected human cases of Lassa Fever fever from urban settings in endemic regions. Our findings highlight the spatially heterogeneous distribution of rodent species across landuse gradients with implications for the hazard of Lassa fever outbreaks.
+
+# Introduction
+
+Lassa fever, caused by *Lassa mammarenavirus* (LASV) is an endemic zoonotic infectious disease in West Africa. There are large uncertainties around estimates of the annual number human of infections in the region of between 100,000-4,383,600 [@mccormick_prospective_1987; @basinski_bridging_2021]. The majority of infections remain undetected and it is estimated that up-to 80% of these are pauci- or asymptomatic infections [@mccormick_prospective_1987]. Few infections are expected to lead to clinically severe cases but outcomes in confirmed clinical cases remain poor, with a reported case fatality rate of 16.5% [@simons_lassa_2022]. Anthropogenic landuse change and changing climate are proposed to increase the suitable area for both the primary reservoir of LASV (*Mastomys natalensis*) and environmental suitability for the virus itself (i.e. increased temperature and precipitation), together increasing opportunities for viral spillover into growing human populations [@redding_environmental-mechanistic_2016; @redding_geographical_2021; @klitting_predicting_2022]. Lassa fever is currently considered endemic in eight West African countries (Nigeria, Guinea, Sierra Leone, Liberia, Mali, Benin, Ghana and Togo) [@world_health_organisation_lassa_2022]. The location, scale and frequency of Lassa fever outbreaks in human communities is highly spatially heterogeneous within these countries. For example, within Sierra Leone, Lassa Fever is typically reported from rural settings in the East of the country. The drivers of spatial clustering of human cases are unknown, in part due to geographical biases in reporting and research effort, but also because the potential drivers of this heterogeneity in Lassa fever risk have rarely been systematically studied [@simons_rodent_2023].
+
+The persistence, or lack of persistence, of LASV infection in rodent communities may be one factor driving the observed spatial clustering of zoonosis spillover into human populations. Persistence of the pathogen within *M. natalensis* communities may not occur if these populations are geographically isolated and below a critical density or abundance. Anthropogenic landuse change regulates small mammal communities through local abiotic environments and biotic interactions with other small mammal species.
+
+*Mastomys natalensis* is found in 13 of 14 continental West African nations (the species has not been reported from The Gambia) and in all other sub-Saharan African countries [@iucn_iucn_2016]. It is a commensal rodent species and is abundant in and around areas of human-dominated landscapes where it is considered a pest species [@leirs_productivity_1993]. The introduction of invasive commensal rodent species (i.e., *Rattus rattus* and *Mus musculus*) has led to increased competition for resources and displacement of *M. natalensis* from some locations within its natural range [@cuypers_no_2017; @garba_spatial_2014]. Population dynamics within this reservoir species, correlated with resource availability and rainfall pulses (with increased abundance at the beginning of the dry season), are associated with outbreaks of Lassa fever in human populations [@redding_geographical_2021]. Few studies to date have used longitudinal, high intensity rodent trapping to characterise rodent species communities in Lassa fever endemic regions [@simons_rodent_2023]. Understanding the spatial distribution of *M. natalensis* and their population dynamics in the context of competing rodent species is vital to guide investigations of the epidemiology of Lassa fever [@basinski_bridging_2021].
+
+Here, we conducted repeated, systematic, rodent trapping in the Eastern province of Sierra Leone, along a landuse gradient to model the association of landuse and occurrence of *M. natalensis* and more generally small mammal communities. We aimed to investigate the following questions. First, what is the diversity of rodent communities in varied landuse types in Eastern Sierra Leone? Second, how do patterns of landuse affect the occupancy of *M. natalensis* and other sympatric rodents? Finally, is there evidence that the local spatial distribution of *M. natalensis* is regulated by biotic interactions with co-occurring species? We expect these analyses to further our understanding of rodent community structures that may explain observed patterns of Lassa fever spillover.
+
+# Materials and methods
+
+## Rodent sampling
+
+We conducted rodent trapping surveys between October 2020-February 2023 within and around four village study sites (Baiama; latitude = 7.8375, longitude = -11.2683, Lalehun; latitude = 8.1973, longitude = -11.0803, Lambayama; latitude = 7.8505, longitude = -11.1969, and Seilama; latitude = 8.1224, longitude = -11.1936) in the Lassa fever endemic zone of the Eastern Province of Sierra Leone (Figure 1A.). Surveys were conducted within trapping grids along a landuse gradient of anthropogenic disturbance comprising, forest, agriculture (including fallow and currently in-use areas), and villages (within and outside of permanent structures) (See Supplementary Material 1 for images representative of trapping grid locations). Trapping grids were designated during the initial trapping survey session, one grid was deployed in forest land use, three to four grids were deployed in agricultural land with two grids deployed in village land use. For one village study site, Lambayama, there were no local forest areas, so this landuse type was omitted (Figure 1B-E). Trapping survey sessions within each village occurred four times annually with two trapping surveys in each of the rainy and dry seasons (May to November and December to April, respectively), giving a total of 9 trapping sessions over the study period (Figure 1F).
+
+Village study sites and trapping grids within the village study sites were selected to be representative of land use in the Eastern Province of Sierra Leone and based on accessibility to the sites during all seasons and acceptability of the study protocol to the village study site communities (Supplementary Material 2). Supplementary material 2 contains detailed information about the trapping process. Briefly, at each trapping grid 49 Sherman traps (7.62cm x 8.89cm x 22.86cm) (H.B. Sherman Traps, Tallahasee, USA), were placed in a 7 trap by 7 trap grid, traps were placed 10 metres apart in a regular grid conforming to the local landscape (median trapping grid area = 4,813m^2^). For traps placed within permanent structures trap placement varied from this grid structure. Permanent structures were selected semi-randomly at each visit from a grid projected over the village area, with four traps placed within each structure. The location of each individual trap within trapping grids was geolocated for subsequent data processing. Traps were baited with a locally produced mixture of oats, palm oil and dried fish. Each morning the traps were checked and closed for the day prior to re-baiting during the evening. Each trapping survey session consisted of four consecutive trap-nights (TN) at each trapping grid within the village study site.
+
+The location data of individual traps were harmonised to standardised trapping grid cells. First, a convex hull of a trapping grid across all trapping survey sessions was produced. Second, a regular grid was constructed to overlay this area with a grid cell size of 49 m^2^, individual traps were allocated to these grid cells if they were contained within its borders. This produced 1,939 unique 49 m^2^ trapping grid cells that individual traps were allocated to for all subsequent analysis (See Supplementary Material 3 for a schematic of this process). The `sf` package in the R statistical computing language (R version 4.1.2) was used for geospatial manipulation and analysis [@pebesma_simple_2018; @r_core_team_r_2021]. The four consecutive trap-nights obtained from each trap during a single survey are pooled as a single replicate for the subsequent statistical analysis.
+
+All rodent handling was performed by trained researchers, rodents were sedated with halothane and euthanised prior to obtaining morphological measurements and samples of blood and tissue following published guidance [@fichet-calvet_chapter_2014]. The study protocol was approved by the Clinical Research Ethical Review Board and Animal Welfare Ethical Review Board of the Royal Veterinary College, United Kingdom (URN: 2019 1949-3), and Njala University, Sierra Leone. The rodents' sex was determined based on external and internal genitalia. Images were obtained of rodents dorsal and ventral aspects. Age estimation was performed through description of the rodents reproductive status (identification of perforate or imperforate vagina, scarring from prior embryo development, current pregnancy status or descent of testes and seminal vesicle development) and weighing of dried eye lenses. Carcasses were destroyed through incineration to eliminate the risk of onward pathogen transmission.
+
+## Species classification
+
+Taxonomic identification was performed in the field based on external characteristics using a taxonomic key, including external morphological measurements and characteristics, developed from Kingdon and Monadjem (Supplementary Material 4) [@kingdon_mammals_2013; @monadjem_rodents_2015]. Morphological identification alone is unable to distinguish some small-mammal species within the study area at species level. Therefore, molecular identification was performed on whole blood, tissue or dried blood spots. Samples were stored at -20°C until processing, genomic DNA was extracted using QIAGEN DNAeasy kits as per the manufacturers instructions (Supplementary Material 2) [@qiagen_dneasy_2023]. DNA extracts were amplified using platinum *Taq* polymerase (Invitrogen) and cytochrome B primers [@bangura_lassa_2021]. DNA amplification was assessed through gel electrophoreisis with successful amplification products undergoing Sanger sequencing. Attribution of obtained sequences to rodent species was through the BLAST programme comparing NCBI species records for rodent cytochrome B to our sample sequences (Supplementary Material 2) [@altschul_basic_1990].
+
+\captionsetup[figure]{labelformat=empty}
+
+```{r figure-1a, layout = "l-page", out.width = "100%", fig.cap = "**Figure 1. A)** Location of village study sites (coloured labels), in Eastern Sierra Leone, major cities are shown with white labels. The inset map shows the location of Sierra Leone in West Africa."}
+
+knitr::include_graphics(here("output", "Figure_1a.png"))
+
+```
+
+
+```{r figure-1b, layout = "l-page", out.width = "100%", fig.cap = "**Figure 1. B)** The location of standardised trapping grid cells in Baiama. Darker colours refer to more trapnights obtained from a 49m^2^ grid cell. The minimum number of trap nights within a grid cell was 4 trap nights and maximum was 68."}
+
+knitr::include_graphics(here("output", "Figure_1b.png"))
+
+```
+
+
+```{r figure-1c, layout = "l-page", out.width = "100%", fig.cap = "**Figure 1. C)** The location of standardised trapping grid cells in Lalehun. Darker colours refer to more trapnights obtained from a 49m^2^ grid cell. The minimum number of trap nights within a grid cell was 4 trap nights and maximum was 68."}
+
+knitr::include_graphics(here("output", "Figure_1c.png"))
+
+```
+
+
+```{r figure-1d, layout = "l-page", out.width = "100%", fig.cap = "**Figure 1. D)** The location of standardised trapping grid cells in Lambayama. Darker colours refer to more trapnights obtained from a 49m^2^ grid cell. The minimum number of trap nights within a grid cell was 4 trap nights and maximum was 60."}
+
+knitr::include_graphics(here("output", "Figure_1d.png"))
+
+```
+
+
+```{r figure-1e, layout = "l-page", out.width = "100%", fig.cap = "**Figure 1. E)** Location of standardised trapping grid cells in Seilama. Darker colours refer to more trapnights obtained from a 49m^2^ grid cell. The minimum number of trap nights within a grid cell was 4 trap nights and maximum was 96."}
+
+knitr::include_graphics(here("output", "Figure_1e.png"))
+
+```
+
+
+``` {r figure-1f, layout = "l-page", fig.cap = "**Figure 1. F)** Number of trap nights obtained from each study village, blue shaded regions represent the rainy season in Sierra Leone. **There is some missing data from sessions, 3, 4 and 8 which will be obtained when I go to SL in February**", out.width = "100%"}
+
+knitr::include_graphics(here("output", "Figure_1f.png"))
+
+```
+
+
+## Description of rodent detection and species community structure
+
+Adequacy of sampling effort was assessed using species accumulation curves produced for each village study site and each land use type within a village study site (Supplementary Material 5), suggesting sufficient effort to detect the expected rodent species within these categories. We constructed detection/non-detection histories for each grid cell and rodent species, assigning "1" when the species was detected and "0" otherwise. We describe species communities at multiple spatial scales. First, all species identified across all village sites and land use types. Second, all species identified within a village study site. Third, all species identified within a single land use type within a single village study site. We report species richness and Shannon diversity at these different spatial scales.
+
+## Estimating the effect of land use on species occurrence and richness
+
+To adjust for differential probabilities of detection that may be driven by environmental conditions and trapping effort during the trapping study and between species, we use a Bayesian spatial latent factor multi-species occupancy model that incorporates residual species correlations, imperfect detection and spatial autocorrelation. Variable selection was informed by a pre-specified conceptual model (Supplementary Material 6). Models were defined using the `sfMsPGOcc` function in the `spOccupancy` package in the R statistical computing language [@doser_spoccupancy_2022]. This approach defines the true presence or absence ($_{z}$) of a species ($_{i}$), at grid cell ($_{j}$) as arising from a Bernoulli process (Equation 1.). Where ${\psi}_{j}$ is the probability of occurrence of a species at a grid cell. This is modelled using a logit link where $\beta_{i}$ are the species-specific regression coefficients of the site-specific covariates (${\boldsymbol{x}}_{j}^{\top}$) and a latent process $\text{w}^*_{i, j}$. This latent process incorporates residual species correlations through a small number of latent spatial factors and latent variables representing unmeasured grid cell covariates (Equation 2.). Latent spatial factors account for spatial autocorrelation using a Nearest Neighbour Gaussian Process.
+
+$$
+{z}_{i,j}\sim \mathrm{Bernoulli}\left({\psi}_{i,j}\right) \tag{1}
+$$
+
+$$
+\mathrm{logit}\left({\psi}_{i,j}\right)={\boldsymbol{x}}_{j}^{\top}\boldsymbol{\beta_{i}} + \text{w}^*_{i, j} \tag{2}
+$$
+
+The species-specific regression coefficients ($\beta_{i}$) are specified as random effects arising from a common community level distribution (Equation 3.). Where $\boldsymbol{\mu}_{\beta}$ represents the community level mean effect for each occurrence covariate effect and $\boldsymbol{T}_{\beta}$ is a diagonal matrix representing the variability of these among the species in the community.
+
+$$
+\boldsymbol{\beta}_i \sim \text{Normal}(\boldsymbol{\mu}_{\beta}, \boldsymbol{T}_{\beta}) \tag{3}
+$$
+
+The detection component estimates the unobserved ${z}_{i,j}$. Here, ${y}_{i,j,k}$ is the observed detection or non-detection of a species $i$, at site $j$, during replicate $k$ (Equation 4.). This is approached as arising from a Bernoulli process conditional on the true latent occurrence process ${p}_{i,j,k}$. The probability of a species being detected at a grid cell, during a replicate (given it is present at grid cell $j$), is a function of grid cell and replicate specific covariates ${\boldsymbol{v}}$ and a set of species-specific regression coefficients ${\boldsymbol{\alpha}}_{i}$ (Equation 5.).
+
+$$
+{y}_{i,j,k}\sim \mathrm{Bernoulli}\left({p}_{i,j,k}{z}_{i,j}\right) \tag{4}
+$$
+
+$$
+\mathrm{logit}\left({p}_{i,j,k}\right)={\boldsymbol{v}}_{i,j,k}^{\top}\boldsymbol{\alpha}_{i} \tag{5}
+$$
+
+Similarly to Equation 3., these coefficients are specified as random effects arising from a common community level distribution, where $\boldsymbol{\mu}_{\alpha}$ represents the community level mean effect for each detection covariate effect and $\boldsymbol{T}_{\alpha}$ is a diagonal matrix representing the variability of these among species in the community (Equation 6.).
+
+$$
+\boldsymbol{\alpha}_i \sim \text{Normal}(\boldsymbol{\mu}_{\alpha}, \boldsymbol{T}_{\alpha}) \tag{6}
+$$
+
+Minimally informative priors were specified for community and species level coefficients (${\alpha}$ and ${\beta}$, a normal prior of mean = 0, variance = 2.72) and for community level occurrence and detection variance parameters ($\boldsymbol{T}_{\alpha}$ and $\boldsymbol{T}_{\beta}$, 0.1 for the scale and shape parameters of the inverse Gamma prior).
+
+We included covariates in the model based on a pre-specified conceptual model and after assessing for co-linearity (defined as strong correlation \>0.8) among variables.  Continuous variables were standardised by scaling values between 0-1. The fully specified model is defined in Equation 7 and 8 and using a single latent spatial factor.
+
+$$
+\text{Probability of occurrence} \sim \text{Land use type} + \text{Village} + \text{scale}(\text{Distance to permanent structure}) + \text{scale}(\text{Elevation}) \tag{7}
+$$
+
+$$
+\text{Probability of detection} \sim \text{scale}(\text{Monthly precipitation}) + \text{Moon fraction} + \text{scale}(\text{Number of trap nights}) \tag{8}
+$$
+
+Model checks, including mixing patterns of the MCMC sampler and posterior predictive checks were performed as an assessment of goodness of fit. Bayesian p-values were produced at the community level and species level with values greater than 0.1 and less than 0.9 suggestive of adequate model fit. The Widely Applicable Information Criterion was used to guide final model selection [@watanabe_asymptotic_2010]. Using this model, we estimate occupancy probability for each species in different land use types. Only estimates for species with detections from at least **10** grid cells are included to avoid inference from limited data.
+
+## Co-occurrence of *Mastomys natalensis* with sympatric species
+
+To investigate the presence of competitive exclusion of the primary reservoir of Lassa fever by other rodent species within these communities we examined the correlation of the probability of occupancy of species pairs. The predicted probability of occupancy at each of the grid cells from our spatial multi-species occupancy model was obtained. We stratified these by landuse type and calculated the Spearman rank correlation coefficient ($\rho$), conducting a two-sided test for statistical significance with a null hypothesis of no correlation between the probability of occupancy for these species. We constrain this analysis to species pairs that were detected in the landuse setting in the observed data informing our model to limit inference from sparse data. Further, due to multiple statistical tests we use a conservative value of statistical significance where *p* <= 0.005 represents a statistically significant association to minimise the reporting of false positive associations [@benjamin_redefine_2018]. A statistically significant positive correlation was interpreted as species one being more likely to occur in a grid cell of the specific landuse type if species two were present. A statistically significant negative correlation was interpreted as species one being less likely to occur in a grid cell of the specific landuse type if species two were present. The causal mechanism and direction behind any observed correlations can not be inferred from our current analysis.
+
+# Results
+
+## Rodent detection and species community structure
+
+During the study period **530** individuals were detected from **30,364** trap-nights across the four village study sites (**1.7%** trap-success (TS)). The greatest number of individuals, highest species richness and Shannon diversity values were obtained in the agricultural landuse type, meanwhile, TS was greatest within village landuse settings (i.e., within and outside of permanent structures) (Table 1). The village study site of Seilama had the highest overall TS, species' richness and Shannon diversity and unlike the three other village study sites had the greatest TS in agricultural landuse. Species richness in Seilama was twice that of the peri-urban village study site (Lambayama) with relatively high Shannon diversity across all landuse types. The sole peri-urban village study site (Lambayama) located within the expanding boundaries of Kenema city, had the lowest species' richness and Shannon diversity with the majority of rodents detected within the village landuse type.
+
+\captionsetup[table]{labelformat=empty}
+
+```{r table-1, layout = "l-page", tab.cap = "Table 1. The number of individual small mammals (N), the number of trap nights (TN), trap-success (TS %), species richness and Shannon diversity by village and landuse type."}
+
+table_1a <- readRDS(here("output", "table_1a.rds"))
+table_1a %>%
+  as_grouped_data(groups = c("village")) %>%
+  flextable() %>%
+  autofit() %>%
+  set_header_labels(landuse = "Landuse",
+                    village = "Village",
+                    N = "N",
+                    TN = "TN (TS %)",
+                    species_richness = "Species richness",
+                    shannon_diversity = "Shannon diversity") %>%
+  fit_to_width(6)
+
+```
+
+The most commonly detected rodent species across all village study sites and land use types was *M. natalensis* (N = **99**, **18.7%**), followed by *Praomys spp.* (N = **81**, **15.2%**), *R. rattus* (N = **71**, **13.3%**), *M. musculus* (N = **57**, **10.7%**) and *Lophuromys sikapusi* (N = **47**, **8.8%**). *Mastomys natalensis* and *R. rattus* were detected at all village study sites, although *M. natalensis* was not detected in forest landuse types (Figure 2.). Conversely, *Hybomys planifrons* and *Gerbilliscus kempii* were only detected in a single village study site, with *H. planifrons* detected in forest landuse and *G. kempii* in agricultural landuse types. The invasive rodent species *M. musculus* was only detected in the Lambayama and Seilama village study sites within village landuse types. The detection rate (the number of individuals detected per 1000 TN) varied by species, landuse type and village study site. The greatest rate of detection was for *M. musculus* in the Lambayama village study site, with the other commensal species *M. natalensis* and *R. rattus* having high detection rates across multiple village study sites within village landuse types. *Praomys spp.* had the highest detection rates in forest and agricultural landuse types.
+
+```{r detection-rate, layout = "l-page", fig.cap = "**Figure 2.** Detection rate of rodent species in land use type. The detection rate per 1000 TN and the number of detections of each rodent species in the three land use types across all four village study sites are shown. Landuse category is shown on the x-axis, with species name on the y-axis. The plots are panelled by village study site. The three rural village study sites are Baiama, Lalehun and Seilama, the single peri-urban village study site is Lambayama. The absolute number of detections of each species in each landuse type in each village is shown in the label. The colour of the tile corresponds to the detection rate per 1,000 trap nights. *Mastomys natalensis* was detected at relatively high rates in the village landuse type from all study villages, although at a lower rate in Lambayama where *M. musculus* was detected at the highest rate. *Rattus rattus* was detected in the village and agricultural landuse type at all study villages, although at a greater rate in the village landuse type. Rodent species that were not detected in village land use types were generally less frequently detected throughout the study (i.e., *Lemniscomys spp.*, *Malacomys spp.* and *M. minutoides*)", out.width = "100%"}
+
+knitr::include_graphics(here("output", "Figure_2.png"))
+
+```
+
+There was some observed variation in species richness by season. Although, the prevalence of a species (measured as the rate of detections per 1000 TN), not accounting for incomplete detection, did not show a single trend for all species (Supplementary Material 7.). *Mus musculus* had a greater detection rate in the rainy season than dry. Conversely, *L. sikapusi*, *Malacomys edwardsi*, *Gerbillinae spp* and *Gerbilliscus spp* had greater detection rates in the dry season. The other species had similar detection rates across both seasons. There was some further variation when stratified by landuse type. *Mastomys natalensis* had greater detection rates in village landuse types compared to agricultural landuse in the rainy season while in the dry season it was detected at similar rates in village and agricultural landuse (Supplementary Material 7B.). *Praomys spp* had greater detection rates in the forest landuse type during the dry season compared with the rainy season. No other species had important variations by season stratified by landuse type.
+
+## Estimating the effect of land use on species occurrence and richness
+
+We drew posterior samples from the most parsimonious Bayesian occupancy model incorporating spatial autocorrelation to estimate the probability of occurrence of a species within a trapping grid cell (see Supplementary Material 8. for model selection). Occurrence terms included landuse type, village study site and scaled terms for distance to the nearest permanent structure and elevation. Detection terms included scaled precipitation and trapping effort (TN) and the fraction of a full moon. We found three patterns of probability of occurrence ($\psi$) within a trapping grid cell for the seven included species (Figure 3.), marginal effects of the remaining parameters are shown in Supplementary Material 9. First, *M. natalensis*, *R. rattus* and *M. musculus* had greatest probabilities of occurrence in village landuse types with lower occurrence probabilities in agricultural and forest landuse types. *Mastomys natalensis* differed from the two commensal, invasive species (*R rattus* and *M musculus*) as their probability of occurrence in agricultural settings was generally high. Second, *Praomys spp.* had high probability of occurrence in forest landuse types with lower probabilities in agricultural and village landuse types. Finally, *Crocidura spp*, *Lophuromys spp* and *Mus minutoides* had their highest probabilities of occurrence in agricultural land use with lower probabilities of occurrence in forest and village landuse. No species showed high probability of occurrence across all land use types, consistent with species being adapted to distinct ecological niches.
+
+```{r response-landuse, layout = "l-page", fig.cap = "**Figure 3.** Probability of species occurrence across a landuse gradient. The probability of occurrence ($\\psi$), within different landuse types, for the seven small mammal species with more than 10 detections is shown. Each point is the median of the predicted probability of occurrence for a species obtained from the posterior distribution at a trapping grid cell. Predictions were obtained for each of the 1,939 trapping grid cells. The y-axis corresponds to the probability of occurrence ($\\psi$) at that trapping grid cell stratified by landuse type (x-axis and point colour) for each species. The range of points indicates confidence of the modelled estimate for that landuse type. For example the narrow range of probabilities for *Mastomys natalensis* in forest landuse types (0-13%) is suggestive that the probability of this species occurring within forest settings to be very low. The wide range of probabilities for some species, such as, *Praomys spp.* in agricultural landuse types, between 0-90% is suggestive that in some agricultural grid cells the probability of occurrence was very low while in others it was very likely to occur.", out.width = '100%'}
+
+knitr::include_graphics(here("output", "Figure_3.png"))
+
+```
+
+The probability of occurrence within a trapping grid cell of some species within the same landuse types showed wide variability for some species. To further explore this we stratified village study sites by human population density into rural and peri-urban (rural <= 500 individuals per 1km^2^). The probability of occurrence of *M natalensis* was importantly different, with high probability of occurrence in both agricultural and village landuse settings in rural areas but substantially lower probability in peri-urban village study sites. The same pattern was observed for *R. rattus*. For the rodent species predicted to have lower probability of occurrence in village landuse settings, namely, *Praomys spp*, *Lophuromys sikapusi* and *M. minutoides* probabilities of occurrence were greater in all landuse types in rural areas compared to peri-urban areas. Shrew species were predicted to have similar probabilities of occurrence in rural and peri-urban areas. In contrast, *M. musculus* was predicted to have a low probability of occurrence in all landuse types in rural areas, with high values only for village landuse settings in peri-urban areas. The occurrence probabilities for the three commensal species (*M. natalensis*, *R. rattus* and *M. musculus*) suggest that competition may be reducing the occurrence of *M. natalensis* and *R. rattus* in the presence of *M. musculus* as in it's absence these two species have high occurrence probabilities in village landuse types.
+
+```{r within-village, layout = "l-page", fig.cap = "**Figure 4.** Probability of species occurrence across a land use gradient stratified by rural and peri-urban village study sites. The probability of occurrence ($\\psi$), within different land use types, for the seven small mammal species with more than 10 detections is shown. Each point is the median of the predicted probability of occurrence for a species obtained from the posterior distribution at a trapping grid cell. Predictions were obtained for each of the 1,939 trapping grid cells. The y-axis corresponds to the probability of occurrence ($\\psi$) at that trapping grid cell stratified by both landuse type and whether the trapping grid cell was located in a rural or peri-urban setting (x-axis and point colour) for each species. *Mastomys natalensis* shows an important difference in the predicted probability of occurrence in village and agricultural landuse types between rural and peri-urban settings, with a greater than 50% decrease between rural and peri-urban settings. *Mus musculus* shows an inverse pattern where the predicted probability of occupancy is importantly increased in peri-urban settings and remains very low in rural settings.", out.width = '100%'}
+
+knitr::include_graphics(here("output", "Figure_4.png"))
+
+```
+
+## Co-occurrence of species
+
+We hypothesised that the local spatial distribution of *M. natalensis* is regulated by biotic interactions with co-occurring species. Our tests for species correlations supported this for *M. natalensis* and other species' of the rodent communities (Figure 5.). We observed that in landuse types where both *M. natalensis* and *M. musculus* co-occurred the presence of one species led to a reduction in the probability of occurrence at a grid cell level of the other with a statistically significant very weak negative correlation observed (Spearman's $\rho$ = -0.15, *p* < 0.001). This negative relationship was not observed between *M. natalensis* and the other commensal, invasive rodent *R. rattus*, where a strong positive correlation between probabilities of occurrences in both agricultural ($\rho$ = 0.86, *p* < 0.001) and village  ($\rho$ = 0.84, *p* < 0.001) landuse settings was observed. Generally, within village landuse types, high probabilities for the presence of *M. musculus* was associated with lower probabilities for all other rodent species. This was not replicated for *M. natalensis* and *R. rattus*, which did not have a similar effect on the presence of the native rodent species *Praomys spp* and *L. sikapusi*. Within agricultural landuse types the probability for co-occurrence between rodent species were high. Generally, across all landuse types, the presence of shrew species' had a negative correlation with the presence of rodent species'.
+
+```{r species-correlations, layout = "l-page", fig.cap = "**Figure 5.** Spearman's rank correlations for the modelled probability of occurrence of species pairs in different landuse types. Positive values (blue shades) represent positive correlation coefficients where an increase in the probability of Species 1 or 2 is associated with an increased probability of Species 1 or 2. Negative values (red shades) represent negative correlation coefficients where an increase in the probability of Species 1 or 2 is associated with a decrease in the probability of Species 1 or 2. Numbers in bold typeface and indicated with an asterisk (*) are statistically significant at a level of *p* <= 0.005. Grey tiles are used where no detections of the species pair in the landuse type were observed in the underlying data informing the model and so were not considered for this analysis to limit inference from limited data.", out.width = '100%'}
+
+knitr::include_graphics(here("output", "Figure_5.png"))
+
+```
+
+# Discussion
+
+Here, we have presented findings from a systematic small-mammal trapping study in Eastern Sierra Leone investigating rodent species communities across a landuse gradient in a Lassa fever endemic region. First, we found similar species richnness and diversity to rodent sampling from other regions of the Lassa fever endemic zone in Guinea, Nigeria and Sierra Leone [@fichet-calvet_lassa_2014; @olayemi_small_2018; @bangura_lassa_2021]. Species richness and diversity was highest in agricultural landuse settings with reduced richness in both forest and village landuse types. There was important variation of species richness and diversity between peri-urban settings and rural settings. Second, the primary host of Lassa fever, *M. natalensis* showed a response to human dominated landuse with the highest probability of occupancy in village settings, followed by agricultural settings and likely absence from forest landuse types. We observed similar patterns for the two invasive, commensal, rodent species *M. musculus* and *R. rattus*. Following stratification by human population density, we found that the probability of occurrence of *M. natalensis* was lower in peri-urban settings where *M. musculus* replaced *M. natalensis* as the dominant commensal rodent species. Finally, we assessed for correlations in the probability of occupancy. We found a very weak negative association between the probability of occupancy of *M. natalensis* and *M. musculus* within village landuse types that could have important implications for the understanding of risk of spillover of Lassa fever in endemic regions.
+
+## Rodent communities are associated with landuse type
+
+Rodent species richness was found to be greatest in agricultural landuse settings where occurrence of small-mammals typically detected in human dominated landuse types were detected alongside those found in forest settings. Agricultural landuse may thus provide an opportunity for LASV transmission between diverse rodent communities, resulting in the introduction or re-introduction of the virus into isolated commensal species populations. This is consistent with the finding of either antibodies to LASV, or acute infection with LASV, from 11 distinct rodent species which could represent incidental spillover of this virus from the known reservoir species [@simons_rodent_2023]. It is therefore important that rodent sampling studies conduct systematic sampling of rodent communities along landuse gradients rather than targeted sampling solely within village settings, as diverse communities will increase the opportunity for viral sharing at local spatial scales. 
+
+Systematic sampling results in a reduced trap success rate compared to targeted sampling. This is seen in our study where the trap success rate was low compared to other studies [@bangura_lassa_2021; @olayemi_small_2018; @happi_increased_2022]. The obtained trap success rate of 4.6% within households is comparable to the 3% obtained from a study conducted in Bo, Sierra Leone, but is substantially lower than the 17% and 14% reported from Nigeria and Guinea respectively [@bangura_lassa_2021; @happi_increased_2022; @fichet-calvet_fluctuation_2007]. Despite the increased trapping effort required to obtain required detections for inferential conclusions adopting these methods will mitigate the potentially substantial biases in species detection and subsequent viral detection introduced by targeted sampling. 
+
+Comparison between studies using different sampling techniques is also challenging. Previous studies on rodent communities in the Lassa fever endemic region have used trap success rates as an indirect measure of rodent abundance. Our analysis, using a model incorporating imperfect detection, suggests estimating abundance from trap success may not be applicable across different landuse types and species (Supplementary Material 9E). For example, we found that the probability of detection of *M. musculus* and *R. rattus* were higher than native species given a consistent amount of trapping effort. This would result in an overestimation of the population size of some species and underestimation of others which may impact inference from data not accounting for imperfect detection. A study of rodent populations in the USA further highlighted the risks of detection rate as a measure of relative abundance [@parsons_monitoring_2022]. The drivers for variability in detection may include trap-shyness of non-synanthropic species, the availability of resources in the local environment and the location of traps [@stryjek_unbiased_2019]. Harmonisation of rodent sampling designs towards systematic community sampling will allow comparison of rodent species communities and pathogen prevalence across the endemic region.
+
+We did not observe that *M. natalensis* was more prevalent in village settings during the dry season, as has been reported from elsewhere in Sierra Leone and Guinea [@bangura_lassa_2021; @fichet-calvet_fluctuation_2007]. Our finding of similar or increased prevalence of *M. natalensis* between seasons, not accounting for imperfect detection, were consistent across our village study sites. It may be that in this region different agricultural practices or food storage behaviour by communities results in different rodent behaviour to elsewhere in its range. Further ecological studies, over longer time periods, within different regions, are required to understand any seasonal migration of these rodent species. It is expected that prevalence of *M. natalensis* within households is likely to modify the risk of Lassa fever spillover into human populations given the potentially increased rate of human-host contact within households. 
+
+## Evidence for biotic interactions shaping patterns of rodent species diversity
+
+The finding that rodent species displayed fairly strong segregation into distinct ecological niches of human dominated (village and agriculture) or non-human dominated (forest) landuse types which was more strongly evident following stratification by human population density suggests an important role for biotic factors in species occurrence. The high predicted occupancy of both *M. natalensis* and *R. rattus* in human dominated landscapes within rural settings shows a high level of co-occurrence consistent with another study conducted in Sierra Leone [@bangura_lassa_2021]. This suggests that these rodent species do not directly compete for resources and that the presence of one species does not preclude the presence of the other. This may not be true for interactions between *M. musculus* and both *R. rattus* and *M. natalensis*. The presence of *M. musculus* within village landuse types in peri-urban settings was associated with an important decrease in the probability of occurrence of both *M. natalensis* and *R. rattus*. *Mus musculus* was also absent in village land use types in rural settings where *R. rattus* and *M. natalensis* had high probabilities of occurring. This finding was reinforced by the statistically significant negative associations of the probability of occurrence of *M. musculus* and all other rodent species in village landuse settings. To identify the causal processes of changes in rodent species community structures longer term monitoring of community change with expanding *M. musculus* and *R. rattus* invasion would be beneficial, as has been conducted in Senegal [@dalecky_range_2015].
+
+## Implications for understanding the risk of Lassa fever spillover
+
+The lower levels of occurrence of *M. natalensis* in agricultural and forest landuse types raises questions about the evenness of LASV prevalence across the fractured landscape of Eastern Sierra Leone. Most studies investigating viral prevalence have found evidence of infection through antibody detection and a limited number of acutely infected rodents, in studies predominantly sampling in village landuse settings, with some villages having no evidence of LASV circulation [@bangura_lassa_2021; @mccormick_prospective_1987; @leski_sequence_2015]. It may be that the lack of mobility of the primary reservoir of LASV outside of human dominated landuse limits transmission LASV between villages. Alternatively it may implicate non-*M. natalensis* species as being important for transferring the pathogen between communities of *M. natalensis* resident in villages separated by forest. Several of the species found to occur in forest settings have been found to have antibodies against LASV, namely *Praomys spp*, *M. minutoides* and *L. striatus*. To understand the apparent spatial variability in LASV prevalence studies are therefore required that incorporate sampling in all landuse types in the endemic region.
+
+Finally, current models of the current and changing risk of Lassa fever in the endemic region do not account for rodent species biotic interactions [@basinski_bridging_2021; @mylne_mapping_2015; @olugasa_rubber_2014; @redding_environmental-mechanistic_2016; @fichet-calvet_risk_2009; @klitting_predicting_2022]. Our finding of important biotic interactions between *M. natalensis* and primarily *M. musculus* may indicate that Lassa fever risk will be relatively low in settings where *M. musculus* is present. Currently *M. musculus*, an invasive rodent species has high abundance in urban settings but not in more rural locations, it is also not known to be infected with LASV, together this may go some way to explain why Lassa fever is more typically reported from rural locations in the endemic region rather than cities. Further work systematically sampling urban-rural gradients in endemic regions will be required to test this hypothesis and the implications this may have on estimates of future Lassa fever risk. As West Africa continues to undergo large population growth, rapid urbanisation and expansion of *M. musculus* ranges the risk of Lassa fever expansion may decrease although there may be potential for LASV to switch hosts given the number of rodent species that have been found to be infected.
+
+There are several limitations to the current study. Rodent sampling was limited to a relatively short period, two years, it is possible that rodent populations in these settings have important variations in abundance that could not be captured in our model and so the probability of detection may be under-estimated for species that were at low abundance during our survey period. Sampling over a longer time period would allow any potential temporal changes in probability of occurrence to be better incorporated. Similarly, landuse in Sierra Leone, particularly agricultural land goes through periods of increased use, it would be informative to study a single location in the transition from forested, to agricultural, to long term fallow and to degraded forest landuse to better characterise any changes in rodent communities within these landuse types. Unobserved characteristics of our study villages also likely contributed to the composition of rodent communities, suggested by the wide posterior distributions for some rodent species, expanding this study to sample more villages would be beneficial to allow further generalisation of this studies findings over the wider region.
+
+# Authors' contributions
+
+David Simons, Rory Gibb, Deborah Watson-Jones, Richard Kock and Kate E. Jones conceived the ideas and designed methodology. David Simons, Umaru Bangura, Dianah Sondufu, Joyce Lamin, James Koninga, Momoh \*, Mike Dawson, Joseph Lahai and Rashid Ansumana collected the data. David Simons and Rory Gibb analysed the data. David Simons, Rory Gibb and Kate E. Jones interpreted the data. David Simons led the writing of the manuscript. Rory Gibb, Deborah Watson-Jones, Richard Kock and Kate E. Jones contributed critically to the drafts. All authors gave final approval for publication.
+
+
+# Statement on inclusion
+
+This study brings together authors from a number of countries, including scientists based in the country where the study was carried out. All authors were engaged early on with the research and study design to ensure that the diverse sets of perspectives they represent was considered. Literature published by scientists from the study country and wider region was cited. Study protocols were discussed with local scientists for appropriateness of design. Consultations were held with community leaders of the study villages and the wider region prior to finalising the study design and enrolment into the study.
+
+# Acknowledgments
+
+The authors would like to thank Jeff Doser, the developer of the `spOccupancy` package for assistance with optimising the model construction and fitting process.
+
+# Conflict of interest
+
+All authors report no financial conflicts of interest.
+
+# Data availability
+
+Data are available from the Zenodo file repository ...
+
+All R scripts to reproduce the analysis are available from an archived GitHub repository ...
+
+# Supplementary Material
+
+## Supplementary Material 1
+
+**Not prepared yet**
+
+## Supplementary Material 2
+
+**Study protocol, separate pdf**
+
+## Supplementary Material 3
+
+```{r trap-grid-cell-schematic, layout = "l-page", fig.cap = "Supplementary material 3. A) Individual traps were placed in a grid structure in a pre-specified location. While attempts were made to keep trap locations over repeated visits individual traps were often placed in slightly different locations. This is shown in the schematic using different colours to represent different visits. B) To harmonize the locations of traps to coordinates that could be used in the spatial occupancy model we aligned a regular grid with grid cell sizes of 49m^2^ over the trapping area and assigned individuals traps to these cells. C) The number of traps and therefore the number of trapnights within each grid cell was aggregated for each visit. The number of trap nights informed the detection component of the species occupancy model. Detection histories were produced for each grid cell that was sampled for each species. Grid cells were assigned a 1 if any trap within the grid cell detected the species and 0 otherwise."}
+
+knitr::include_graphics(here("report", "Supplementary_material_3.png"))
+
+```
+
+## Supplementary Material 4
+
+**Taxonomic key, separate pdf**
+
+## Supplementary Material 5
+
+```{r species-accumulation, layout = "l-page", fig.cap = "Supplementary material 5A. Species accumulation curves for each village site."}
+
+knitr::include_graphics(here("output", "Supplementary_material_5a.png"))
+
+```
+
+```{r species-accumulation-landuse, layout = "l-page", fig.cap = "Supplementary material 5B. Species accumulation curves for each village site stratified by landuse type."}
+
+knitr::include_graphics(here("output", "Supplementary_material_5b.png"))
+
+```
+
+## Supplementary Material 6
+
+```{r model-DAG, layout = "l-page", fig.cap = "Supplementary material 6. Conceptual model used to identify potential causal pathways for inclusion of variables for the occupancy and detection model specification."}
+
+knitr::include_graphics(here("report", "Supplementary_material_6.png"))
+
+```
+
+## Supplementary Material 7
+
+```{r species-detection, layout = "l-page", fig.cap = "Supplementary material 7A. The detection rate for all species by season (Rainy = May-October, Dry = November-April) of trapping activity."}
+
+knitr::include_graphics(here("output", "Supplementary_material_7a.png"))
+
+```
+
+```{r species-detection-landuse, layout = "l-page", fig.cap = "Supplementary material 7B. The detection rate for all species by season (Rainy = May-October, Dry = November-April) stratified by landuse type of trapping activity."}
+
+knitr::include_graphics(here("output", "Supplementary_material_7b.png"))
+
+```
+
+## Supplementary Material 8
+
+**Model selection table, not done yet but have screenshots if you are interested in coefficients etc.**
+
+## Supplementary Material 9
+
+```{r marginal-effect-A, layout = "l-page", fig.cap = "Supplementary material 9A: The marginal effect of scaled distance from building on the probability of occurrence of a species in a grid cell for each village study site. Generally a decline in probability of occurrence is observed with increasing distance. This decline is greatest for the commensal rodent species *M. natalensis*, *R. rattus* and *M. musculus*. *Praomys spp.*, *L. sikapusi* and *M. minutoides* display a more complex pattern where probability of occurrence increases over relatively short distances and then falls away as distances increase further. The trend line is a Locally estimated scatterplot smoothing (LOESS) model fit to the data with the formula (Scaled distance from building ~ Probability of occurrence)."}
+
+knitr::include_graphics(here("output", "Supplementary_material_9a.png"))
+
+```
+
+```{r marginal-effect-B, layout = "l-page", fig.cap = "Supplementary material 9B: The marginal effect of scaled elevation on the probability of occurrence of a species in a grid cell for each village study site. No clear patterns are observed for individual species', this may be due to the limited ranges of elevation sampled within and between grid cells."}
+
+knitr::include_graphics(here("output", "Supplementary_material_9b.png"))
+
+```
+
+```{r marginal-effect-C, layout = "l-page", fig.cap = "Supplementary material 9C: The marginal effect of mean monthly rainfall on the probability of detection of a species in a grid cell. The black line shows the mean modelled probability of detection for the amount of monthly rainfall, the shaded grey region represents the 95% Credible Interval (CrI). Probability of detection varies by species with higher values for the invasive rodent species *M. musculus* and *R. rattus*, than the native rodent species. There is a general response of decreasing probability of detection with increasing rainfall."}
+
+knitr::include_graphics(here("output", "Supplementary_material_9c.png"))
+
+```
+
+```{r marginal-effect-D, layout = "l-page", fig.cap = "Supplementary material 9D: The marginal effect of the fraction of the full moon on the probability of detection of a species in a grid cell. The black line shows the mean modelled probability of detection for the moon phase, the shaded grey region represents the 95% CrI. Probability of detection varies by species with higher values for the invasive rodent species *M. musculus* and *R. rattus*, than the native rodent species. There is no important response to moon phase for most species. The probability of detection appears to fall for *M. natalensis* with increasing moon phase but the credible intervals overlap for the entire range."}
+
+knitr::include_graphics(here("output", "Supplementary_material_9d.png"))
+
+```
+
+```{r marginal-effect-E, layout = "l-page", fig.cap = "Supplementary material 9E: The marginal effect of trapping effort (TN) on the probability of detection of a species in a grid cell. The black line shows the mean modelled probability of detection trapping effort, the shaded grey region represents the 95% CrI. Probability of detection is low for all species at low levels of TN. The probability of detection with increasing TN varies by species. The invasive rodent species *M. musculus* and *R. rattus* show a sinusoidal response over the range of TNs that were observed in this study with the probability of detection being greater than 50% at relatively low numbers of TN (15 and 17 respectively). Much greater trapping effort were required to obtain the same probability of detection for the native rodent species. Only *M. natalensis* reached this threshold at 32 TN, with the other species requiring >32 TN to reach a probability of 50% detection."}
+
+knitr::include_graphics(here("output", "Supplementary_material_9e.png"))
+
+```
+
+# References
