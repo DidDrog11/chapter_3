@@ -55,6 +55,10 @@ sl_inset_map <- ggdraw() +
   draw_plot(africa_map, x = 0.7, y = 0.65, width = 0.3, height = 0.3)
 
 ggsave2(plot = sl_inset_map, filename = here("output", "Figure_1a.png"), dpi = 300, width = 7, height = 6)
+ggsave2(plot = ggdraw() +
+          draw_plot(sl_map +
+                      labs(title = element_blank())) +
+          draw_plot(africa_map, x = 0.7, y = 0.65, width = 0.3, height = 0.3), filename = here("output", "Figure_1a.svg"), dpi = 300, width = 7, height = 6)
 
 
 # Trap timeline -----------------------------------------------------------

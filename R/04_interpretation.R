@@ -104,27 +104,50 @@ species_plots <- function(data = final_model) {
            village = str_to_sentence(village),
            peri_urban = factor(case_when(village == "Lambayama" ~ "Peri-Urban",
                                   TRUE ~ "Rural"),
-                               levels = c("Rural", "Peri-Urban")))
+                               levels = c("Rural", "Peri-Urban")),
+           peri_urban_landuse = factor(paste(landuse, "-", peri_urban), levels = c("Forest - Rural", "Agriculture - Rural", "Village - Rural",
+                                                                                            "Forest - Peri-Urban", "Agriculture - Peri-Urban", "Village - Peri-Urban")))
+  
+  landuse_median <- landuse_df %>%
+    group_by(Species, village, landuse) %>%
+    summarise(Psi = median(Psi, na.rm = TRUE)) %>%
+    ungroup()
+  
+  landuse_median_urbanisation <- landuse_df %>%
+    group_by(Species, village, landuse, peri_urban_landuse) %>%
+    summarise(Psi = median(Psi, na.rm = TRUE)) %>%
+    ungroup()
   
   landuse_plot <- landuse_df %>%
     ggplot() +
     geom_jitter(aes(y = Psi, x = landuse, colour = landuse), alpha = 0.2, height = 0) + 
     facet_wrap(~ Species, nrow = 2) +
-    scale_fill_manual(values = landuse_palette) +
-    scale_colour_manual(values = landuse_palette) +
-    theme_bw() +
+    scale_fill_manual(values = landuse_palette, name = "Landuse") +
+    scale_colour_manual(values = landuse_palette, name = "Landuse") +
     guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+    new_scale_colour() +
+    geom_point(data = landuse_median, aes(y = Psi, x = landuse, colour = village)) +
+    geom_line(data = landuse_median %>%
+                group_by(Species, village), aes(y = Psi, x = landuse, colour = village, group = village), inherit.aes = FALSE) +
+    scale_colour_manual(values = village_palette, name = "Village") +
+    theme_bw() +
     labs(y = "Probability of occurrence (ψ)",
-         x = element_blank(),
-         colour = "Landuse")
+         x = element_blank())
   
   landuse_urbanisation_plot <- landuse_df %>%
     ggplot() +
-    geom_jitter(aes(y = Psi, x = peri_urban, colour = landuse), alpha = 0.2, position = position_jitterdodge(dodge.width = 0.9, jitter.height = 0)) + 
+    geom_jitter(aes(y = Psi, x = peri_urban_landuse, colour = landuse), alpha = 0.2) + 
     facet_wrap(~ Species, nrow = 2) +
-    scale_colour_manual(values = landuse_palette) +
-    theme_bw() +
+    scale_colour_manual(values = landuse_palette, name = "Landuse") +
     guides(colour = guide_legend(override.aes = list(alpha = 1))) +
+    new_scale_colour() +
+    scale_x_discrete(drop = FALSE, labels = c("", "Rural", "", "", "Peri-Urban", "")) +
+    geom_point(data = landuse_median_urbanisation, aes(y = Psi, x = peri_urban_landuse, colour = village), inherit.aes = FALSE) +
+    geom_line(data = landuse_median_urbanisation %>%
+                group_by(Species, village), aes(y = Psi, x = peri_urban_landuse, colour = village, group = village), inherit.aes = FALSE) +
+    scale_colour_manual(values = village_palette, name = "Village") +
+    theme_bw() +
+    theme(axis.ticks.x = element_blank()) +
     labs(y = "Probability of occurrence (ψ)",
          x = element_blank(),
          colour = "Landuse")
@@ -162,6 +185,8 @@ save_plot(plot = plots$landuse_plot, filename = here("output", "Figure_3.png"), 
 
 save_plot(plot = plots$landuse_urbanisation_plot, filename = here("output", "Figure_4.png"), base_width = 8, base_height = 8)
 
+## Species occurrence plot for poster
+save_plot(plot = plots$landuse_urbanisation_plot, filename = here("output", "Figure_4.svg"), base_width = 8, base_height = 8)
 
 # Marginal effects occurrence ---------------------------------------------
 

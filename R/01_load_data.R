@@ -12,30 +12,78 @@ write_rds(combined_data, here("data", "input", "combined_data.rds"))
 # Prepare data into sites and detections ----------------------------------
 # Currently sequence data is only available for a small subset of the total number of individuals, for now we will continue to use field id's
 
-detections <- combined_data$rodent_data %>%
+raw_detections <- combined_data$rodent_data %>%
   mutate(clean_names = field_id) %>%
   filter(trap_uid %in% combined_data$trap_data$trap_uid) %>% # only keep rodents for sites with coordinates
-  # Currently 544 rodents
+  # Currently 690 rodents
   filter(!str_detect(rodent_uid, "BAM")) %>% # remove Bambawo
-  # Leaves 530 rodents
+  # Leaves 684 rodents
   drop_na(clean_names) %>% # remove individuals without a genus identification
-  # Leaves 529 rodents
+  # Leaves 684 rodents
   mutate(village = str_split(as.character(trap_uid), "_", simplify = TRUE)[, 1], # Extract location data for these rodents
          visit = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 2]),
          trap_night = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 3]),
          grid_number = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 4]),
          grid_number = case_when(grid_number == 6 ~ 7,
                                  TRUE ~ grid_number),
-         trap_number = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 5])) %>%
+         trap_number = as.numeric(str_split(as.character(trap_uid), "_", simplify = TRUE)[, 5]),
+         clean_names = case_when(qc == "Passed" ~ species,
+                                 qc == "Failed" & str_split(species, "_", simplify = TRUE)[ , 1] == genus ~ species,
+                                 TRUE ~ NA),
+         clean_names = coalesce(clean_names, field_id)) 
+
+# We are still awaiting molecular id on 585 individuals
+# morphological ID is probably good for most but to discriminate further can use some of the properties of the known species
+
+confirmed_species_summary <- raw_detections %>%
+  filter(qc == "Passed") %>%
+  group_by(species, age_group) %>%
+  mutate(genus = str_split(species, "_", simplify = TRUE)[ ,1]) %>%
+  summarise(n = n(),
+            min_weight = min(weight, na.rm = TRUE),
+            max_weight = max(weight, na.rm = TRUE),
+            median_weight = median(weight, na.rm = TRUE),
+            min_hb = min(head_body, na.rm = TRUE),
+            max_hb = max(head_body, na.rm = TRUE),
+            median_hb = median(head_body, na.rm = TRUE),
+            min_hf = min(hind_foot, na.rm = TRUE),
+            max_hf = max(hind_foot, na.rm = TRUE),
+            median_hf = median(hind_foot, na.rm = TRUE),
+            min_ear = min(ear, na.rm = TRUE),
+            max_ear = max(ear, na.rm = TRUE),
+            median_ear = median(ear, na.rm = TRUE),
+            min_skull = min(length_skull, na.rm = TRUE),
+            max_skull = max(length_skull, na.rm = TRUE),
+            median_skull = median(length_skull, na.rm = TRUE))
+
+unconfirmed_species <- raw_detections %>%
+  filter(qc != "Passed" | is.na(qc)) %>%
+  mutate(clean_names = case_when(qc == "Failed" & str_detect(species, genus) ~ species,
+                                 genus == "lophuromys" ~ "lophuromys_sikapusi",
+                                 genus == "lemniscomys" ~ "lemniscomys_striatus",
+                                 genus == "malacomys" ~ "malacomys_edwardsi",
+                                 genus == "mastomys" ~ "mastomys_natalensis",
+                                 genus == "mus" & village == "lambayama" ~ "mus_musculus",
+                                 genus == "mus" & weight <= 40 & ear <= 20 ~ "mus_setulosus",
+                                 genus == "praomys" ~ "praomys_rostratus",
+                                 genus == "rattus" ~ "rattus_rattus",
+                                 genus == "hybomys" ~ "hybomys_planifrons",
+                                 genus == "hylomyscus" ~ "hylomyscus_simus",
+                                 genus == "gerbilliscus" ~ "gerbilliscus_guineae",
+                                 genus == "dasymys" ~ "dasymys_rufulus",
+                                 genus == "crocidura" & weight <= 18 & head_body <= 90 ~ "crocidura_grandiceps",
+                                 genus == "crocidura" & weight <= 25 & head_body <= 100 ~ "crocidura_buettikoferi",
+                                 genus == "crocidura" ~ "crocidura_olivieri"))
+
+
+detections <- bind_rows(raw_detections %>%
+                          filter(qc == "Passed"),
+                        unconfirmed_species) %>%
+  # remove trap night from trap_uid as this will be accounted for as a detection covariate
+  mutate(trap_uid = paste0(village, "_", visit, "_", grid_number, "_", trap_number)) %>%
   select(rodent_id = rodent_uid, village, visit, grid_number, trap_number, trap_uid, clean_names) %>%
-  # For now we will assign all village landuse trapped mus to mus_musculus and all others to mus_minutoides
-  mutate(clean_names = case_when(clean_names == "mus_spp" & grid_number %in% c(6, 7) ~ "mus_musculus",
-                                 clean_names == "mus_spp" ~ "mus_minutoides",
-                                 TRUE ~ clean_names)) %>% 
-  # Change the visit for baiama and lambayama to keep consistent numberings for dates
-  mutate(visit = case_when(str_detect(village, "baiama|lambayama") & visit %in% c(1:4) ~ visit + 2,
-                           TRUE ~ visit), 
-         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number))) # change the trap_uid to reflect this
+  group_by(trap_uid, clean_names) %>%
+  mutate(n = n())
 
 # Each four night trapping activity will be considered as a single replicate  #
 # The exact location of a trap varied between replicates. To incorporate      #
@@ -44,24 +92,21 @@ detections <- combined_data$rodent_data %>%
 # UTM 29N for Sierra Leone this is EPSG:32629.                                #
 
 sites <- combined_data$trap_data %>%
-  select(date_set, village, trap_uid, visit, grid_number, trap_number, habitat_group, site_habitat, site_use, elevation, geometry) %>%
+  select(date_set, village, trap_uid, visit, grid_number, trap_number, habitat_group, habitat, site_use, elevation, geometry) %>%
   filter(village != "bambawo") %>% # remove Bambawo as only used for one replicate
-  # 30,374 TNs and 7,677 traps
+  # 43,266 TNs and 10,900 traps
   mutate(visit = as.numeric(as.character(visit)),
          grid_number = as.numeric(as.character(grid_number)),
          grid_number = case_when(grid_number == 6 ~ 7,
                                  TRUE ~ grid_number), # combining 6 and 7 as overlap spatially
          longitude = st_coordinates(geometry)[, 1],
          latitude = st_coordinates(geometry)[, 2],
-         landuse = case_when(site_habitat == "forest" ~ "forest",
-                             str_detect(site_habitat, "village") ~ "village",
-                             str_detect(site_habitat, "banana|cassava|fallow|agriculture|palm|rice") ~ "agriculture",
-                             str_detect(site_use, "Farming") & village == "baiama" & visit == 8 ~ "agriculture",
-                             TRUE ~ habitat_group),
-         visit = case_when(str_detect(village, "baiama|lambayama") & visit %in% c(1:4) ~ visit + 2,
-                           TRUE ~ visit), 
-         # Change the visit for baiama and lambayama to keep consistent numberings for dates
-         trap_uid = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number))) %>% # change the trap_uid to reflect this
+         landuse = factor(case_when(str_detect(habitat_group, "agriculture") ~ "agriculture",
+                                    str_detect(habitat_group, "village") ~ "village",
+                                    !village %in% c("lambayama", "baiama") & str_detect(habitat_group, "forest") ~ "forest",
+                                    village == "baiama" & grid_number == 2 ~ "agriculture",
+                                    village == "baiama" & grid_number == 1 ~ "forest",
+                                    village == "lambayama" & grid_number == 3 ~ "agriculture"), levels = c("forest", "agriculture", "village"))) %>%
   tibble(.) %>%
   select(-geometry) %>%
   distinct(village, visit, grid_number, trap_number, landuse, longitude, latitude, .keep_all = TRUE) %>%
@@ -216,36 +261,10 @@ write_rds(trap_nights %>%
             rename(site_id = unique_site), here("data", "observed_data", "trap_nights.rds"))
 
 # Add date_set to the sites dataset to calculate moon and rainfall    #
-
-current_dates <- trap_nights %>%
-  left_join(bind_rows(sites_in_grid) %>%
-              select(trap_id = trap_uid, unique_site)) %>%
-  distinct(trap_id) %>%
-  left_join(tibble(combined_data$trap_data) %>%
-              select(date_set, village, visit, grid_number, trap_number) %>%
-              mutate(visit = case_when(str_detect(village, "lambayama|baiama") & as.numeric(as.character(visit)) < 7 ~ as.numeric(as.character(visit)) + 2,
-                                       TRUE ~ as.numeric(as.character(visit))),
-                     grid_number = case_when(grid_number == as.character(6) ~ as.numeric(7),
-                                             TRUE ~ as.numeric(as.character(grid_number))),
-                     trap_id = factor(paste0(village, "_", visit, "_", grid_number, "_", trap_number)),
-                     date_set = case_when(village == "lalehun" & date_set == "2020-11-30" ~ ymd("2020-12-01"), # Change date to prevent big difference between nights rainfall
-                                          TRUE ~ ymd(date_set))))
-
-last_visit <- current_dates %>%
-  group_by(village) %>%
-  summarise(last_visit = max(visit),
-            date_set = max(date_set))
-
-# Date set for all sites                                                #
-date_set <- trap_nights %>%
-  mutate(village = str_split(unique_site, "_", simplify = TRUE)[ , 1]) %>%
-  left_join(bind_rows(sites_in_grid) %>%
-              select(unique_site, site_easting, site_northing)) %>%
-  left_join(current_dates %>%
-              distinct(village, visit, date_set),
-            by = c("village", "visit")) %>%
-  distinct(date_set, visit, site_id = unique_site, site_easting, site_northing)
-
+# Date set for all sites                                              #
+date_set <- bind_rows(sites_in_grid) %>%
+  select(date_set, village, visit, site_id = unique_site, site_easting, site_northing, trap_id = trap_uid)
+  
 write_rds(date_set, here("data", "observed_data", "date_set.rds"))
 
 # Monthly rainfall --------------------------------------------------------

@@ -7,11 +7,19 @@ observed_data <- read_rds(here("data", "observed_data", "descriptive_data.rds"))
 
 detections <- observed_data$detections %>%
   rename(trap_id = trap_uid,
-         species = clean_names)
+         species = clean_names) %>%
+  arrange(village, visit, grid_number)
 
 sites <- observed_data$sites_grids$select_site %>%
   bind_rows() %>%
-  select(date_set, site_id = unique_site, site, landuse, site_easting, site_northing, village, visit, grid_number, trap_id = trap_uid, trap_easting, trap_northing, elevation)
+  mutate(village = as.character(village)) %>%
+  distinct(site_id = unique_site, village, visit, grid_number, site_easting, site_northing, site, trap_id = trap_uid, date_set) %>%
+  arrange(village, visit, grid_number, site)
+
+# names of the sites trapping occurred at, 2068
+site_match <- tibble(site_code = 1:length(unique(sites$site_id)),
+                     site_id = unique(sites$site_id))
+site_codes <- site_match$site_code
 
 trap_nights <- read_rds(here("data", "observed_data", "trap_nights.rds"))
 
@@ -32,18 +40,14 @@ y_long <- detections %>%
 included_species <- y_long %>%
   group_by(species) %>%
   summarise(count = sum(count)) %>%
-  filter(count > 12) %>%
+  filter(count > 25) %>%
   pull(species)
 
 y_long <- y_long %>%
   filter(species %in% included_species)
 
-# names of the "species" trapped
+# names of the species trapped
 sp_codes <- sort(unique(y_long$species))
-# names of the sites trapping occurred at
-site_match <- tibble(site_code = 1:length(unique(sites$site_id)),
-                     site_id = unique(sites$site_id))
-site_codes <- site_match$site_code
 
 # define which sites were surveyed at each replicate
 trap_nights_df <- site_match %>%
@@ -59,7 +63,8 @@ trap_nights_df <- site_match %>%
 y_long <- y_long %>%
   left_join(site_match, by = "site_id") %>%
   group_by(site_code) %>%
-  mutate(non_0_site_code = cur_group_id())
+  mutate(non_0_site_code = cur_group_id()) %>%
+  arrange(site_code)
 
 non_0_site_code <- unique(y_long$site_code)
 
@@ -72,7 +77,7 @@ K <- max(sites$visit)
 # number of sites
 J <- length(site_codes)
 
-if(!file.exists(here("data", "observed_data", "y_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_data", "y_sp.rds"))) {
   
   y = array(NA, dim = c(N, J, K), dimnames = list(sp_codes, site_codes[1:J], 1:K))
   
@@ -107,11 +112,11 @@ if(!file.exists(here("data", "observed_data", "y_sp_subset.rds"))) {
   
   # this produces our y array which can be saved to save time on repeat runs
   
-  write_rds(y, here("data", "observed_data", "y_sp_subset.rds"))
+  write_rds(y, here("data", "observed_data", "y_sp.rds"))
   
 } else {
   
-  y <- read_rds(here("data", "observed_data", "y_sp_subset.rds"))
+  y <- read_rds(here("data", "observed_data", "y_sp.rds"))
   
 }
 
@@ -128,10 +133,12 @@ observed_species <- tibble(species = names(apply(y, 1, sum, na.rm = TRUE)),
 # Produce detection covariates --------------------------------------------
 # here we add covariates that can impact the probability of detecting a rodent if it is present
 
-if(!file.exists(here("data", "observed_data", "det_covs_sp_subset.rds"))) {
+if(!file.exists(here("data", "observed_data", "det_covs_sp.rds"))) {
   
   raw_det <- read_rds(here("data", "observed_data", "detection_covariates.rds")) %>%
-    left_join(site_match, by = c("site_id"))
+    left_join(site_match, by = c("site_id")) %>%
+    distinct(site_id, site_code, visit, precipitation, moon_fraction, trap_nights) %>%
+    arrange(site_code)
   
   precip_mat <- matrix(NA, nrow = J, ncol = K)
   moon_mat <- matrix(NA, nrow = J, ncol = K)
@@ -155,28 +162,33 @@ if(!file.exists(here("data", "observed_data", "det_covs_sp_subset.rds"))) {
                    moon_fraction = moon_mat,
                    trap_nights = tn_mat)
   
-  write_rds(det_covs, here("data", "observed_data", "det_covs_sp_subset.rds"))
+  write_rds(det_covs, here("data", "observed_data", "det_covs_sp.rds"))
   
 } else {
   
-  det_covs <- read_rds(here("data", "observed_data", "det_covs_sp_subset.rds"))
+  det_covs <- read_rds(here("data", "observed_data", "det_covs_sp.rds"))
   
 }
 
 # Produce occurrence covariates -------------------------------------------
 raw_occ <- read_rds(here("data", "observed_data", "occurrence_covariates.rds")) %>%
   left_join(site_match, by = c("site_id")) %>%
-  mutate(pop_quartile = case_when(str_detect(pop_quartile, "first") ~ 1,
+  mutate(village = as.character(village),
+         pop_quartile = case_when(str_detect(pop_quartile, "first") ~ 1,
                                   str_detect(pop_quartile, "second") ~ 2,
                                   str_detect(pop_quartile, "third") ~ 3,
                                   str_detect(pop_quartile, "fourth") ~ 4),
          setting = case_when(village == "lambayama" ~ "peri-urban",
                              TRUE ~ "rural"),
+         landuse = as.character(landuse),
          group_landuse = case_when(village == "lambayama" & landuse == "agriculture" ~ "agriculture - peri-urban",
                                    village == "lambayama" & landuse == "village" ~ "village - peri-urban",
                                    village != "lambayama" & landuse == "agriculture" ~ "agriculture - rural",
                                    village != "lambayama" & landuse == "village" ~ "village - rural",
-                                   TRUE ~ landuse))
+                                   landuse == "forest" ~ "forest - rural", 
+                                   TRUE ~ landuse)) %>%
+  arrange(site_code) %>%
+  distinct()
 
 landuse_mat <- matrix(NA, nrow = J, ncol = 1)
 village_mat <- matrix(NA, nrow = J, ncol = 1)
@@ -201,20 +213,28 @@ for(j in 1:J) {
 }
 
 occ_covs <- list(landuse = factor(landuse_mat, levels = c("forest", "agriculture", "village")),
-                 village = factor(village_mat),
+                 village = factor(village_mat, levels = c(village_order)),
                  setting = factor(setting_mat, levels = c("rural", "peri-urban")),
-                 group_landuse = factor(group_landuse_mat, levels = c("forest", "agriculture - rural", "agriculture - peri-urban",
+                 group_landuse = factor(group_landuse_mat, levels = c("forest - rural", "agriculture - rural", "agriculture - peri-urban",
                                                                       "village - rural", "village - peri-urban")),
                  distance_building = building_mat,
                  distance_village = dist_village_mat,
                  elevation = elevation_mat,
                  population = population_mat,
-                 population_q = population_q_mat)
+                 population_q = factor(population_q_mat, levels = c("first", "second", "third", "fourth")))
 
 write_rds(occ_covs, here("data", "observed_data", "occ_covs.rds"))
 
 # Format site coordinates -------------------------------------------------
 coords <- read_rds(here("data", "observed_data", "site_coords.rds"))
+
+coords <- tibble(X = coords[, 1],
+                 Y = coords[, 2],
+                 site_id = row.names(coords)) %>%
+  left_join(site_match, by = c("site_id")) %>%
+  arrange(site_code) %>%
+  select(X, Y) %>%
+  as.matrix()
 
 
 # Spatial model data ------------------------------------------------------

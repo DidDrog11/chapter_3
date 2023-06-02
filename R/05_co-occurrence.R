@@ -228,7 +228,7 @@ correlation_df <- lapply(correlation_list, function(x) {
 
 correlation_plot <- correlation_df %>%
   ggplot() +
-  geom_tile(aes(x = species_2, y = species_1, fill = strength)) +
+  geom_tile(aes(x = species_2, y = species_1, fill = correlation_coef)) +
   geom_label(data = correlation_df %>%
                filter(sig == TRUE) %>%
                mutate(correlation_coef = paste0(correlation_coef, "*")), 
@@ -236,10 +236,10 @@ correlation_plot <- correlation_df %>%
   geom_label(data = correlation_df %>%
                filter(sig == FALSE), 
              aes(x = species_2, y = species_1, label = correlation_coef)) +
-  scale_fill_brewer(palette = "RdBu", direction = 1, na.value = "grey", drop = FALSE) +
+  scale_fill_gradient2(low = "darkred", high = "darkblue", na.value = "grey", limits = c(-1, 1),
+                       breaks = c(1, 0.5, 0, -0.5, -1), labels = c("Strong +ve", "", "None", "", "Strong -ve")) +
   scale_x_discrete(drop = FALSE, guide = guide_axis(n.dodge = 2)) +
   scale_y_discrete(drop = FALSE) +
-  guides(fill = guide_legend(reverse = TRUE)) +
   facet_wrap(~ landuse, ncol = 1) +
   labs(fill = "Strength of correlation",
        x = "Species",
@@ -249,3 +249,37 @@ correlation_plot <- correlation_df %>%
 save_plot(correlation_plot, filename = here("output", "Figure_5.png"), base_height = 12, base_width = 8)
 
 
+# Rearranging plot for poster ---------------------------------------------
+# Function taken from https://stackoverflow.com/a/58734961
+install.packages("lemon")
+library(lemon)
+shift_legend3 <- function(p) {
+  pnls <- cowplot::plot_to_gtable(p) %>% gtable::gtable_filter("panel") %>%
+    with(setNames(grobs, layout$name)) %>% purrr::keep(~identical(.x,zeroGrob()))
+  
+  if( length(pnls) == 0 ) stop( "No empty facets in the plot" )
+  
+  lemon::reposition_legend( p, "center", panel=names(pnls) )
+}
+
+poster_correlation_plot <- shift_legend3(correlation_df %>%
+                                           ggplot() +
+                                           geom_tile(aes(x = species_2, y = species_1, fill = correlation_coef)) +
+                                           geom_label(data = correlation_df %>%
+                                                        filter(sig == TRUE) %>%
+                                                        mutate(correlation_coef = paste0(correlation_coef, "*")), 
+                                                      aes(x = species_2, y = species_1, label = correlation_coef), fontface = "bold") +
+                                           geom_label(data = correlation_df %>%
+                                                        filter(sig == FALSE), 
+                                                      aes(x = species_2, y = species_1, label = correlation_coef)) +
+                                           scale_fill_gradient2(low = "darkred", high = "darkblue", na.value = "grey", limits = c(-1, 1),
+                                                                breaks = c(1, 0.5, 0, -0.5, -1), labels = c("Strong +ve", "", "None", "", "Strong -ve")) +
+                                           scale_x_discrete(drop = FALSE, guide = guide_axis(n.dodge = 2)) +
+                                           scale_y_discrete(drop = FALSE) +
+                                           facet_wrap(~ landuse, ncol = 2) +
+                                           labs(fill = "Strength of correlation",
+                                                x = element_blank(),
+                                                y = element_blank()) +
+                                           theme_bw())
+
+save_plot(poster_correlation_plot, filename = here("output", "Figure_5.svg"), base_height = 8, base_width = 10)

@@ -18,10 +18,6 @@ tn <- observed_data$non_processed_data$trap_data %>%
   tibble() %>%
   select(-geometry) %>%
   filter(village != "bambawo") %>%
-  mutate(visit = case_when(str_detect(village, "baiama|lambayama") & visit %in% c(1:4) ~ as.numeric(visit) + 2,
-                    TRUE ~ as.numeric(visit))) %>%
-  mutate(grid_number = case_when(str_detect(village, "seilama|lalehun") & visit %in% c(1:2) & as.character(grid_number) == 6 ~ as.character(7),
-                          TRUE ~ as.character(grid_number))) %>%
   group_by(village, visit, grid_number, trap_number) %>%
   summarise(tn = n()) %>%
   mutate(trap_id = paste0(village, "_", visit, "_", grid_number, "_", trap_number)) %>%
@@ -107,12 +103,15 @@ tibble(trap_areas) %>%
 # plot of grids by village
 grids_with_traps <- mapply(X = sites %>%
                              st_as_sf(coords = c("trap_easting", "trap_northing"), crs = SL_UTM) %>%
-                             mutate(trap_number = str_split(trap_id, pattern = "_", simplify = TRUE)[, 4]) %>%
+                             mutate(trap_number = str_split(trap_id, pattern = "_", simplify = TRUE)[, 4],
+                                    village = factor(village, levels = village_order)) %>%
+                             arrange(village, grid_number) %>%
                              group_by(village, grid_number) %>%
                              group_split(),
                            Y = grids %>%
-                             mutate(village = str_split(grid_id, "_", simplify = TRUE)[, 1],
+                             mutate(village = factor(str_split(grid_id, "_", simplify = TRUE)[, 1], levels = village_order),
                                     grid = as.numeric(str_split(grid_id, "_", simplify = TRUE)[, 2])) %>%
+                             arrange(village, grid) %>%
                              group_by(village, grid) %>%
                              group_split(),
                            function(X, Y) {
@@ -121,7 +120,7 @@ grids_with_traps <- mapply(X = sites %>%
   do.call(rbind, .) %>%
   select(village = village.x, grid_number, site_id, landuse, grid_id, grid_polygon = geometry)
 
-f <- function(i) paste(i, collapse="_")
+f <- function(i) paste(i, collapse = "_")
 
 grids_with_traps$grp <- factor(sapply(st_equals(grids_with_traps), f))
 
@@ -137,18 +136,73 @@ osm_bbox <- lapply(X = grids_with_traps, function(X) {X %>% group_by(village) %>
   st_transform(crs = default_CRS) %>%
   group_split()
 
-names(osm_bbox) <- c("baiama", "lalehun", "lambayama", "seilama")
+names(osm_bbox) <- village_order
 
 if(!file.exists(here("data", "observed_data", "baiama_raster.tif"))) {
   
-  bg = lapply(X = osm_bbox, function(X) {osm.raster(extract_bbox(st_bbox(X)), zoomin = + 2)})
-  bg = lapply(X = bg, function(X) {rast(X) %>%
-      project(y = SL_UTM)})
+  remotes::install_github("poissonconsulting/poisspatial")
+  library("poisspatial")
   
-  writeRaster(bg$baiama, here("data", "observed_data", "baiama_raster.tif"), overwrite = TRUE)
-  writeRaster(bg$lalehun, here("data", "observed_data", "lalehun_raster.tif"), overwrite = TRUE)
-  writeRaster(bg$lambayama, here("data", "observed_data", "lambayama_raster.tif"), overwrite = TRUE)
-  writeRaster(bg$seilama, here("data", "observed_data", "seilama_raster.tif"), overwrite = TRUE)
+  bg_lalehun = get_googlemap(center = st_coordinates(st_centroid(osm_bbox$lalehun)), size = c(640, 640), scale = 2, format = "png8",
+                             maptype = "satellite", zoom = 17) %>%
+    ps_ggmap_to_raster() %>%
+    rast(., crs = "EPSG:4269")
+  
+  crs(bg_lalehun) <- "EPSG:4269"
+  
+  bg_lalehun <- project(bg_lalehun, SL_UTM)
+  
+  RGB(bg_lalehun) <- c(1:3)
+  
+  plot(bg_lalehun)
+  
+  writeRaster(bg_lalehun, here("data", "observed_data", "lalehun_raster.tif"), overwrite = TRUE)
+  
+  bg_seilama = get_googlemap(center = st_coordinates(st_centroid(osm_bbox$seilama)), size = c(640, 640), scale = 2, format = "png8",
+                             maptype = "satellite", zoom = 16) %>%
+    ps_ggmap_to_raster() %>%
+    rast(., crs = "EPSG:4269")
+  
+  crs(bg_seilama) <- "EPSG:4269"
+  
+  bg_seilama <- project(bg_seilama, SL_UTM)
+  
+  RGB(bg_seilama) <- c(1:3)
+  
+  plot(bg_seilama)
+  
+  writeRaster(bg_seilama, here("data", "observed_data", "seilama_raster.tif"), overwrite = TRUE)
+  
+  bg_baiama = get_googlemap(center = st_coordinates(st_centroid(osm_bbox$baiama)), size = c(640, 640), scale = 2, format = "png8",
+                             maptype = "satellite", zoom = 15) %>%
+    ps_ggmap_to_raster() %>%
+    rast(., crs = "EPSG:4269")
+  
+  crs(bg_baiama) <- "EPSG:4269"
+  
+  bg_baiama <- project(bg_baiama, SL_UTM)
+  
+  RGB(bg_baiama) <- c(1:3)
+  
+  plot(bg_baiama)
+  
+  writeRaster(bg_baiama, here("data", "observed_data", "baiama_raster.tif"), overwrite = TRUE)
+  
+  bg_lambayama = get_googlemap(center = st_coordinates(st_centroid(osm_bbox$lambayama)), size = c(640, 640), scale = 2, format = "png8",
+                            maptype = "satellite", zoom = 17) %>%
+    ps_ggmap_to_raster() %>%
+    rast(., crs = "EPSG:4269")
+  
+  crs(bg_lambayama) <- "EPSG:4269"
+  
+  bg_lambayama <- project(bg_lambayama, SL_UTM)
+  
+  RGB(bg_lambayama) <- c(1:3)
+  
+  plot(bg_lambayama)
+  
+  writeRaster(bg_lambayama, here("data", "observed_data", "lambayama_raster.tif"), overwrite = TRUE)
+  
 }
 
 fig_1_df <- grids_with_traps
@@ -157,7 +211,7 @@ write_rds(fig_1_df, here("data", "observed_data", "fig_1_df.rds"))
 
 # Description rodents trapped ---------------------------------------------
 
-number_rodents <- nrow(detections)
+number_rodents <- length(unique(detections$rodent_id))
 
 trap_success_rate <- round(number_rodents/number_trap_nights * 100, 1)
 
@@ -166,7 +220,6 @@ trap_success_rate_df <- detections %>%
   left_join(sites,
             by = "trap_id") %>%
   distinct() %>%
-  drop_na() %>%
   group_by(village, landuse) %>%
   summarise(n_rodents = n()) %>%
   left_join(tn_village_landuse %>%
@@ -179,9 +232,8 @@ species_trapped <- detections %>%
   left_join(sites,
             by = "trap_id") %>%
   distinct() %>%
-  drop_na() %>%
-  janitor::tabyl(clean_names)
-
+  janitor::tabyl(clean_names) %>%
+  arrange(desc(percent), desc(n), clean_names)
 
 # Description species trapped ---------------------------------------------
 
@@ -332,7 +384,7 @@ season_detection <- detections %>%
   labs(fill = element_blank(),
        y = "Detection rate (/1000 TN)",
        x = "Season",
-       title = "Species detection by season")
+       title = "Village level species detection by season")
 
 season_detection_landuse <- detections %>%
   left_join(sites,
@@ -358,13 +410,10 @@ season_detection_landuse <- detections %>%
   labs(fill = element_blank(),
        y = "Detection rate (/1000 TN)",
        x = "Season",
-       title = "Species detection by season stratified by landuse")
+       title = "Landuse level species detection by season")
 
 save_plot(plot = season_detection, filename = here("output", "Supplementary_material_7a.png"), base_width = 6, base_height = 7)
 save_plot(plot = season_detection_landuse, filename = here("output", "Supplementary_material_7b.png"), base_width = 6, base_height = 7)
-# Up to here Need to split seasonal detection by landuse ------------------
-
-
 
 # Species diversity -------------------------------------------------------
 
@@ -452,7 +501,6 @@ diversity_landuse_village <- diversity %>%
 
 diversity_combined <- bind_rows(diversity_village, diversity_landuse, diversity_landuse_village)
   
-  
 trap_village <- tn_village %>%
   mutate(village = factor(village, levels = village_order, labels = names(village_order)))
 
@@ -492,9 +540,7 @@ table_1a <- richness_combined %>%
 write_rds(table_1a, here("output", "table_1a.rds"))
 
 
-
 # Supplementary Material 5 ------------------------------------------------
-
 
 # Species accumulation graphs for supplementary village level
 baiama_accum <- richness %>%
@@ -678,29 +724,27 @@ save_plot(plot = accumulation_plot_village_landuse, base_width = 10, base_height
 # Trap success in buildings, village and other for comparison
 indoor_traps <- observed_data$sites_grids$select_site %>%
   bind_rows() %>%
-  filter(site_habitat == "village_inside") %>%
-  select(site_id = unique_site, village, visit, trap_uid) %>%
-  mutate(tn = 4,
-         landuse = "village_inside") %>%
-  group_by(village, visit) %>%
-  mutate(tn = sum(tn))
+  group_by(village, visit, trap_easting, trap_northing) %>%
+  mutate(traps = n()) %>%
+  filter(site_use == "housing" | (landuse == "village" & traps >= 3)) %>%
+  ungroup() %>%
+  mutate(trap_id = paste0(village, "_", visit, "_", grid_number, "_", trap_number)) %>%
+  select(site_id = unique_site, village, visit, trap_id) %>%
+  left_join(tn) %>%
+  mutate(landuse = "village_inside") %>%
+  group_by(village, visit, site_id, landuse) %>%
+  summarise(tn = sum(tn))
 
+indoor_traps_tn <- indoor_traps %>%
+  group_by(village) %>%
+  summarise(tn = sum(tn))
 
 detections_visit_indoors <- detections %>%
-  group_by(site_id, visit, village, clean_names) %>%
+  group_by(site_id, visit, village) %>%
   summarise(n = n()) %>%
   filter(site_id %in% indoor_traps$site_id) %>%
-  left_join(indoor_traps %>%
-              tibble() %>%
-              select(landuse, visit, village, tn) %>%
-              distinct(),
-            by = c("visit", "village")) %>%
-  drop_na(landuse) %>%
-  group_by(clean_names, village, visit, landuse) %>%
-  summarise(n = sum(n),
-            tn = unique(tn)) %>%
-  group_by(village, visit) %>%
-  summarise(n_all = sum(n),
-            tn = unique(tn))
+  group_by(village) %>%
+  summarise(n = sum(n))
 
-sum(detections_visit_indoors$n_all)/sum(detections_visit_indoors$tn)
+left_join(detections_visit_indoors, indoor_traps_tn) %>%
+  mutate(ts = round(n/tn * 100, 1))
