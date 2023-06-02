@@ -221,7 +221,7 @@ occ_covs <- list(landuse = factor(landuse_mat, levels = c("forest", "agriculture
                  distance_village = dist_village_mat,
                  elevation = elevation_mat,
                  population = population_mat,
-                 population_q = factor(population_q_mat, levels = c("first", "second", "third", "fourth")))
+                 population_q = factor(population_q_mat, levels = c(1, 2, 3, 4), labels = c("first", "second", "third", "fourth")))
 
 write_rds(occ_covs, here("data", "observed_data", "occ_covs.rds"))
 
