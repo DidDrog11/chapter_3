@@ -3,8 +3,13 @@ source(here::here("R", "00_setup.R"))
 # Load data ---------------------------------------------------------------
 
 y_long <- read_rds(here("data", "observed_data", "y_long.rds"))
-occ_covs <- read_rds(here("data", "observed_data", "occ_covariates.rds"))
-det_covs <- read_rds(here("data", "observed_data", "det_covs_sp_subset.rds"))
+occ_covs <- read_rds(here("data", "observed_data", "occ_covs_df.rds")) %>%
+  mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village")),
+         village = factor(village, levels = c(village_order)),
+         setting = factor(setting, levels = c("rural", "peri-urban")),
+         group_landuse = factor(group_landuse, levels = c("forest - rural", "agriculture - rural", "agriculture - peri-urban",
+                                                              "village - rural", "village - peri-urban")))
+det_covs <- read_rds(here("data", "observed_data", "det_covs_sp.rds"))
 
 # included species
 sp_codes <- sort(unique(y_long$species))
@@ -31,16 +36,16 @@ summary(final_ppc)
 ppc_vis <- function(data = final_ppc) {
   
   ppc_df <- tibble(ppv = c(rep(1:length(data$fit.y[,1]), times = 2)),
-                   "crocidura" = c(data$fit.y[ , 1], data$fit.y.rep[, 1]),
-                   "lophuromys" = c(data$fit.y[ ,2], data$fit.y.rep[, 2]),
-                   "mastomys" = c(data$fit.y[ ,3], data$fit.y.rep[, 3]),
-                   "minutoides" = c(data$fit.y[ ,4], data$fit.y.rep[, 4]),
-                   "musculus" = c(data$fit.y[ ,5], data$fit.y.rep[, 5]),
-                   "praomys" = c(data$fit.y[ ,6], data$fit.y.rep[, 6]),
-                   "rattus" = c(data$fit.y[ ,7], data$fit.y.rep[, 7]),
+                   "crocidura_olivieri" = c(data$fit.y[ , 1], data$fit.y.rep[, 1]),
+                   "lophuromys_sikapusi" = c(data$fit.y[ ,2], data$fit.y.rep[, 2]),
+                   "mastomys_natalensis" = c(data$fit.y[ ,3], data$fit.y.rep[, 3]),
+                   "mus_musculus" = c(data$fit.y[ ,4], data$fit.y.rep[, 4]),
+                   "mus_setulosus" = c(data$fit.y[ ,5], data$fit.y.rep[, 5]),
+                   "praomys_rostratus" = c(data$fit.y[ ,6], data$fit.y.rep[, 6]),
+                   "rattus_rattus" = c(data$fit.y[ ,7], data$fit.y.rep[, 7]),
                    fit = c(rep("True", times = length(data$fit.y[ , 1])), rep("Fitted", times = length(data$fit.y[ , 1])))) %>%
     arrange(ppv) %>%
-    pivot_longer(cols = c("crocidura", "lophuromys", "mastomys", "minutoides", "musculus", "praomys", "rattus"), names_to = "Species",
+    pivot_longer(cols = c(contains(sp_codes)), names_to = "Species",
                  values_to = "Fitted_value") %>%
     pivot_wider(names_from = fit, values_from = "Fitted_value") %>%
     mutate(discrepancy = case_when(True > Fitted ~ "True > Fit",
@@ -97,16 +102,13 @@ species_plots <- function(data = final_model) {
   
   landuse_df <- d2 %>%
     left_join(occ_covs, by = c("Site" = "site_code")) %>%
-    mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village"), 
-                            labels = c("Forest", "Agriculture", "Village")),
-           Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
+    mutate(Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
                             levels = species_order_plots),
-           village = str_to_sentence(village),
-           peri_urban = factor(case_when(village == "Lambayama" ~ "Peri-Urban",
-                                  TRUE ~ "Rural"),
-                               levels = c("Rural", "Peri-Urban")),
-           peri_urban_landuse = factor(paste(landuse, "-", peri_urban), levels = c("Forest - Rural", "Agriculture - Rural", "Village - Rural",
-                                                                                            "Forest - Peri-Urban", "Agriculture - Peri-Urban", "Village - Peri-Urban")))
+           village = factor(str_to_sentence(village), levels = str_to_sentence(village_order)),
+           landuse = factor(str_to_sentence(landuse), levels = names(landuse_palette)),
+           peri_urban = factor(str_to_sentence(setting), levels = c("Rural", "Peri-Urban")),
+           peri_urban_landuse = factor(str_to_title(group_landuse), levels = c("Forest - Rural", "Agriculture - Rural", "Village - Rural",
+                                                                               "Forest - Peri-Urban", "Agriculture - Peri-Urban", "Village - Peri-Urban")))
   
   landuse_median <- landuse_df %>%
     group_by(Species, village, landuse) %>%
@@ -118,7 +120,18 @@ species_plots <- function(data = final_model) {
     summarise(Psi = median(Psi, na.rm = TRUE)) %>%
     ungroup()
   
-  landuse_plot <- landuse_df %>%
+  install.packages("lemon")
+  library(lemon)
+  shift_legend3 <- function(p) {
+    pnls <- cowplot::plot_to_gtable(p) %>% gtable::gtable_filter("panel") %>%
+      with(setNames(grobs, layout$name)) %>% purrr::keep(~identical(.x,zeroGrob()))
+    
+    if( length(pnls) == 0 ) stop( "No empty facets in the plot" )
+    
+    lemon::reposition_legend( p, "center", panel=names(pnls) )
+  }
+  
+  landuse_plot <- shift_legend3(landuse_df %>%
     ggplot() +
     geom_jitter(aes(y = Psi, x = landuse, colour = landuse), alpha = 0.2, height = 0) + 
     facet_wrap(~ Species, nrow = 2) +
@@ -132,9 +145,9 @@ species_plots <- function(data = final_model) {
     scale_colour_manual(values = village_palette, name = "Village") +
     theme_bw() +
     labs(y = "Probability of occurrence (ψ)",
-         x = element_blank())
+         x = "Land use"))
   
-  landuse_urbanisation_plot <- landuse_df %>%
+  landuse_urbanisation_plot <- shift_legend3(landuse_df %>%
     ggplot() +
     geom_jitter(aes(y = Psi, x = peri_urban_landuse, colour = landuse), alpha = 0.2) + 
     facet_wrap(~ Species, nrow = 2) +
@@ -149,8 +162,8 @@ species_plots <- function(data = final_model) {
     theme_bw() +
     theme(axis.ticks.x = element_blank()) +
     labs(y = "Probability of occurrence (ψ)",
-         x = element_blank(),
-         colour = "Landuse")
+         x = "Study site setting",
+         colour = "Landuse"))
   
   return(list(species_data = landuse_df,
               landuse_plot = landuse_plot,
@@ -163,9 +176,11 @@ plots <- species_plots()
 
 # Model checks
 
-check_model <- left_join(d2, y_long %>%
+check_model <- left_join(plots$species_data, y_long %>%
                            rename(Site = site_code,
                                   Species = species) %>%
+                           mutate(Species = factor(str_to_sentence(str_replace_all(Species, "_", " ")),
+                                                   levels = species_order_plots)) %>%
                            group_by(Site, Species) %>%
                            summarise(observed = sum(count)),
                          by = c("Site", "Species")) %>%

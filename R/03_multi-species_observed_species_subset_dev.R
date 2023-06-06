@@ -66,6 +66,8 @@ y_long <- y_long %>%
   mutate(non_0_site_code = cur_group_id()) %>%
   arrange(site_code)
 
+write_rds(y_long, here("data", "observed_data", "y_long.rds"))
+
 non_0_site_code <- unique(y_long$site_code)
 
 # number of species
@@ -190,6 +192,8 @@ raw_occ <- read_rds(here("data", "observed_data", "occurrence_covariates.rds")) 
   arrange(site_code) %>%
   distinct()
 
+write_rds(raw_occ, here("data", "observed_data", "occ_covs_df.rds"))
+
 landuse_mat <- matrix(NA, nrow = J, ncol = 1)
 village_mat <- matrix(NA, nrow = J, ncol = 1)
 setting_mat <- matrix(NA, nrow = J, ncol = 1)
@@ -223,7 +227,7 @@ occ_covs <- list(landuse = factor(landuse_mat, levels = c("forest", "agriculture
                  population = population_mat,
                  population_q = factor(population_q_mat, levels = c(1, 2, 3, 4), labels = c("first", "second", "third", "fourth")))
 
-write_rds(occ_covs, here("data", "observed_data", "occ_covs.rds"))
+write_rds(occ_covs, here("data", "observed_data", "occ_covs_list.rds"))
 
 # Format site coordinates -------------------------------------------------
 coords <- read_rds(here("data", "observed_data", "site_coords.rds"))
@@ -717,7 +721,7 @@ summary(out_ms_spatial_7)
 # Seems generally better fit than M4
 waicOcc(out_ms_spatial_4)
 waicOcc(out_ms_spatial_7)
-# WAIC agrres
+# WAIC agrees
 
 ## M8 Landuse and village + distance ---------------------
 if(!file.exists(here("data", "observed_model_output", "model_dev", "spatial_8.rds"))) {
@@ -829,10 +833,10 @@ waicOcc(out_ms_spatial_9)
 # Long runs of two lowest WAIC from each group M4-M6 and M7-M9 ------------
 
 ## M10 Landuse village type combined + distance + elevation --------------------
-# Based on M6
+# Based on M2
 if(!file.exists(here("data", "observed_model_output", "model_dev", "spatial_10.rds"))) {
   
-  out_ms_spatial_10 <- sfMsPGOcc(occ.formula = occ_ms_formula_6, 
+  out_ms_spatial_10 <- sfMsPGOcc(occ.formula = occ_ms_formula_2, 
                                 det.formula = det_ms_formula, 
                                 data = data_msom_spatial, 
                                 inits = ms_inits_spatial, 
@@ -877,16 +881,16 @@ summary(out_ms_spatial_10)
 
 # Spatial variance high rhat 17.4 with ESS of 3
 # Not as good as M6
-waicOcc(out_ms_spatial_6)
+waicOcc(out_ms_spatial_2)
 waicOcc(out_ms_spatial_10)
 
 
 ## M11 Landuse and village + distance + elevation -------------------------
 # Currently these aren't necessarily better, perhaps try increasing so that the number of posterior samples is the same
-# Expanded version of M7
+# Expanded version of M8
 if(!file.exists(here("data", "observed_model_output", "model_dev", "spatial_11.rds"))) {
   
-  out_ms_spatial_11 <- sfMsPGOcc(occ.formula = occ_ms_formula_7, 
+  out_ms_spatial_11 <- sfMsPGOcc(occ.formula = occ_ms_formula_8, 
                                 det.formula = det_ms_formula, 
                                 data = data_msom_spatial, 
                                 inits = ms_inits_spatial, 
@@ -932,18 +936,16 @@ summary(out_ms_spatial_11)
 
 # Spatial variance high rhat 5.35 with ESS of 5
 # Seems generally better fit than M4
-waicOcc(out_ms_spatial_7)
+waicOcc(out_ms_spatial_8)
 waicOcc(out_ms_spatial_11)
 
-final_model <- out_ms_spatial_7
+final_model <- out_ms_spatial_2
 write_rds(final_model, here("data", "observed_model_output", "model_dev", "final_model.rds"))
 # PPC ---------------------------------------------------------------------
 
-## While it seems that model 7 is the most acceptable there is a risk it is over-parameterised ##
-## It could also be that these values are very low reasonably as lophuromys, praomys and mus minutoides were not observed in the settings of low values ##
 final_ppc <- ppcOcc(final_model, fit.stat = "chi-squared", group = 1)
 summary(final_ppc)
 
-# Bayesian P-value = 0.48
-# All species acceptable, crocidura is at the lower limit at 0.12
+# Bayesian P-value = 0.5
+# All species acceptable, crocidura is at the lower limit at 0.16
 write_rds(final_ppc, here("data", "observed_model_output", "model_dev", "final_ppc.rds"))

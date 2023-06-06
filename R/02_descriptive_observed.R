@@ -326,8 +326,8 @@ fig_2 <- fig_2_df %>%
   geom_tile() +
   geom_label(fill = "white") +
   scale_fill_viridis_c(trans = scales::log10_trans(), breaks = scales::breaks_log()) +
-  facet_wrap(~ village) +
-  labs(y = element_blank(),
+  facet_wrap(~ village, ncol = 2) +
+  labs(y = "Species",
        fill = "Detection rate \nper 1,000 trap nights",
        x = "Landuse") +
   theme_bw()

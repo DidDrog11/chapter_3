@@ -5,8 +5,13 @@ library(ggstatsplot)
 # Load data ---------------------------------------------------------------
 
 y_long <- read_rds(here("data", "observed_data", "y_long.rds"))
-occ_covs <- read_rds(here("data", "observed_data", "occ_covariates.rds"))
-det_covs <- read_rds(here("data", "observed_data", "det_covs_sp_subset.rds"))
+occ_covs <- read_rds(here("data", "observed_data", "occ_covs_df.rds")) %>%
+  mutate(landuse = factor(landuse, levels = c("forest", "agriculture", "village")),
+         village = factor(village, levels = c(village_order)),
+         setting = factor(setting, levels = c("rural", "peri-urban")),
+         group_landuse = factor(group_landuse, levels = c("forest - rural", "agriculture - rural", "agriculture - peri-urban",
+                                                          "village - rural", "village - peri-urban")))
+det_covs <- read_rds(here("data", "observed_data", "det_covs_sp.rds"))
 
 # included species
 sp_codes <- sort(unique(y_long$species))
@@ -50,15 +55,15 @@ psi_species <- lapply(psi_list, function(x) {
 
 # Correlations for co-occurrence ------------------------------------------
 
-cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_spp", species_2 = "rattus_spp") {
+cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_natalensis", species_2 = "rattus_rattus") {
   
   paired_df <- data %>%
     filter(Species %in% c(species_1, species_2)) %>%
     select(Site, Species, Psi) %>%
     pivot_wider(names_from = Species, values_from = Psi) %>%
     left_join(occ_covs, by = c("Site" = "site_code")) %>%
-    mutate(group_landuse = factor(group_landuse, levels = c("forest", "agriculture - rural", "agriculture - peri-urban", "village - rural", "village - peri-urban"),
-                                  labels = c("Forest", "Agriculture - Rural", "Agriculture - Peri-urban", "Village - Rural", "Village - Peri-urban")))
+    mutate(group_landuse = factor(group_landuse, levels = c("forest - rural", "agriculture - rural", "agriculture - peri-urban", "village - rural", "village - peri-urban"),
+                                  labels = c("Forest - Rural", "Agriculture - Rural", "Agriculture - Peri-urban", "Village - Rural", "Village - Peri-urban")))
   
   correlation <- paired_df %>%
     ggplot() +
@@ -169,7 +174,7 @@ cooccurrence_plot <- function(data = psi_species, species_1 = "mastomys_spp", sp
 
 # Correlations by landuse type ---------------------------------------------
 species_list <- list()
-sp_codes_2 <- c("mastomys_spp", "rattus_spp", "mus_musculus", "crocidura_spp", "praomys_spp", "lophuromys_spp", "mus_minutoides")
+sp_codes_2 <- c("mastomys_natalensis", "rattus_rattus", "mus_musculus", "crocidura_olivieri", "praomys_rostratus", "lophuromys_sikapusi", "mus_setulosus")
 
 associations_to_test <- expand_grid(species_1 = sp_codes_2, species_2 = sp_codes_2) %>%
   mutate(key = paste0(pmin(species_1, species_2), pmax(species_1, species_2), sep = "")) %>%
@@ -199,7 +204,7 @@ for(n in 1:length(sp_codes_2)) {
   }
 }
 
-species_order_plots <- c("Mastomys spp", "Rattus spp", "Mus musculus", "Crocidura spp", "Praomys spp", "Lophuromys spp", "Mus minutoides")
+species_order_plots <- c("Mastomys natalensis", "Rattus rattus", "Mus musculus", "Crocidura olivieri", "Praomys rostratus", "Lophuromys sikapusi", "Mus setulosus")
 
 correlation_df <- lapply(correlation_list, function(x) {
   lapply(x, function(y) {
@@ -213,9 +218,9 @@ correlation_df <- lapply(correlation_list, function(x) {
   mutate(sig = case_when(spearman_p <= 0.005 ~ TRUE,
                          is.na(spearman_p) ~ NA,
                          TRUE ~ FALSE),
-         species_1 = factor(species_1, levels = c("mastomys_spp", "rattus_spp", "mus_musculus", "crocidura_spp", "praomys_spp", "lophuromys_spp", "mus_minutoides"),
+         species_1 = factor(species_1, levels = c("mastomys_natalensis", "rattus_rattus", "mus_musculus", "crocidura_olivieri", "praomys_rostratus", "lophuromys_sikapusi", "mus_setulosus"),
                             labels = species_order_plots),
-         species_2 = factor(species_2, levels = c("mastomys_spp", "rattus_spp", "mus_musculus", "crocidura_spp", "praomys_spp", "lophuromys_spp", "mus_minutoides"),
+         species_2 = factor(species_2, levels = c("mastomys_natalensis", "rattus_rattus", "mus_musculus", "crocidura_olivieri", "praomys_rostratus", "lophuromys_sikapusi", "mus_setulosus"),
                             labels = species_order_plots),
          species_1 = fct_rev(species_1),
          landuse = factor(landuse, levels = c("Forest", "Agriculture", "Village")),
@@ -237,7 +242,7 @@ correlation_plot <- correlation_df %>%
                filter(sig == FALSE), 
              aes(x = species_2, y = species_1, label = correlation_coef)) +
   scale_fill_gradient2(low = "darkred", high = "darkblue", na.value = "grey", limits = c(-1, 1),
-                       breaks = c(1, 0.5, 0, -0.5, -1), labels = c("Strong +ve", "", "None", "", "Strong -ve")) +
+                       breaks = c(1, 0.5, 0, -0.5, -1), labels = c("+1 Strong +ve", "", "None", "", "-1 Strong -ve")) +
   scale_x_discrete(drop = FALSE, guide = guide_axis(n.dodge = 2)) +
   scale_y_discrete(drop = FALSE) +
   facet_wrap(~ landuse, ncol = 1) +
@@ -273,7 +278,7 @@ poster_correlation_plot <- shift_legend3(correlation_df %>%
                                                         filter(sig == FALSE), 
                                                       aes(x = species_2, y = species_1, label = correlation_coef)) +
                                            scale_fill_gradient2(low = "darkred", high = "darkblue", na.value = "grey", limits = c(-1, 1),
-                                                                breaks = c(1, 0.5, 0, -0.5, -1), labels = c("Strong +ve", "", "None", "", "Strong -ve")) +
+                                                                breaks = c(1, 0.5, 0, -0.5, -1), labels = c("+1 Strong +ve", "", "None", "", "-1 Strong -ve")) +
                                            scale_x_discrete(drop = FALSE, guide = guide_axis(n.dodge = 2)) +
                                            scale_y_discrete(drop = FALSE) +
                                            facet_wrap(~ landuse, ncol = 2) +
