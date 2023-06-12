@@ -939,6 +939,38 @@ summary(out_ms_spatial_11)
 waicOcc(out_ms_spatial_8)
 waicOcc(out_ms_spatial_11)
 
+
+# Model selection ---------------------------------------------------------
+
+waic <- bind_rows(waicOcc(out_ms_spatial_int),
+                  waicOcc(out_ms_spatial_1),
+                  waicOcc(out_ms_spatial_2),
+                  waicOcc(out_ms_spatial_3),
+                  waicOcc(out_ms_spatial_4),
+                  waicOcc(out_ms_spatial_5),
+                  waicOcc(out_ms_spatial_6),
+                  waicOcc(out_ms_spatial_7),
+                  waicOcc(out_ms_spatial_8),
+                  waicOcc(out_ms_spatial_9),
+                  waicOcc(out_ms_spatial_10),
+                  waicOcc(out_ms_spatial_11))
+
+model_descriptives <- tibble(model_number = 0:11,
+                             formulae = as.character(c("intercept only", occ_ms_formula_1, occ_ms_formula_2,
+                                                       occ_ms_formula_3, occ_ms_formula_4, occ_ms_formula_5,
+                                                       occ_ms_formula_6, occ_ms_formula_7, occ_ms_formula_8,
+                                                       occ_ms_formula_9, occ_ms_formula_2, occ_ms_formula_8)))
+
+model_comparison <- bind_cols(model_descriptives, waic) %>%
+  arrange(WAIC)
+  
+
+# elpd expected log pointwise predictive density
+# pD effective number of parameters
+write_rds(model_comparison, here("data", "observed_model_output", "model_dev", "model_comparison.rds"))
+
+summary(out_ms_spatial_2)
+
 final_model <- out_ms_spatial_2
 write_rds(final_model, here("data", "observed_model_output", "model_dev", "final_model.rds"))
 # PPC ---------------------------------------------------------------------

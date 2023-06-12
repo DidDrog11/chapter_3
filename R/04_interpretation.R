@@ -120,7 +120,7 @@ species_plots <- function(data = final_model) {
     summarise(Psi = median(Psi, na.rm = TRUE)) %>%
     ungroup()
   
-  install.packages("lemon")
+  if (!require("lemon")) install.packages("lemon")
   library(lemon)
   shift_legend3 <- function(p) {
     pnls <- cowplot::plot_to_gtable(p) %>% gtable::gtable_filter("panel") %>%
@@ -139,13 +139,15 @@ species_plots <- function(data = final_model) {
     scale_colour_manual(values = landuse_palette, name = "Landuse") +
     guides(colour = guide_legend(override.aes = list(alpha = 1))) +
     new_scale_colour() +
-    geom_point(data = landuse_median, aes(y = Psi, x = landuse, colour = village)) +
+    geom_point(data = landuse_median, aes(y = Psi, x = landuse), colour = "black", inherit.aes = FALSE) +
     geom_line(data = landuse_median %>%
-                group_by(Species, village), aes(y = Psi, x = landuse, colour = village, group = village), inherit.aes = FALSE) +
+                group_by(Species, village), aes(y = Psi, x = landuse, group = village, linetype = village), inherit.aes = FALSE, colour = "black") +
     scale_colour_manual(values = village_palette, name = "Village") +
     theme_bw() +
+      guides(colour = "none") +
     labs(y = "Probability of occurrence (ψ)",
-         x = "Land use"))
+         x = "Land use",
+         linetype = "Village"))
   
   landuse_urbanisation_plot <- shift_legend3(landuse_df %>%
     ggplot() +
@@ -155,15 +157,16 @@ species_plots <- function(data = final_model) {
     guides(colour = guide_legend(override.aes = list(alpha = 1))) +
     new_scale_colour() +
     scale_x_discrete(drop = FALSE, labels = c("", "Rural", "", "", "Peri-Urban", "")) +
-    geom_point(data = landuse_median_urbanisation, aes(y = Psi, x = peri_urban_landuse, colour = village), inherit.aes = FALSE) +
+    geom_point(data = landuse_median_urbanisation, aes(y = Psi, x = peri_urban_landuse), colour = "black", inherit.aes = FALSE) +
     geom_line(data = landuse_median_urbanisation %>%
-                group_by(Species, village), aes(y = Psi, x = peri_urban_landuse, colour = village, group = village), inherit.aes = FALSE) +
+                group_by(Species, village), aes(y = Psi, x = peri_urban_landuse, group = village, linetype = village), inherit.aes = FALSE, colour = "black") +
     scale_colour_manual(values = village_palette, name = "Village") +
+      scale_linetype_manual(values = c("solid", "longdash", "dotted", "dotdash"), name = "Village") +
     theme_bw() +
+    guides(colour = "none") +
     theme(axis.ticks.x = element_blank()) +
     labs(y = "Probability of occurrence (ψ)",
-         x = "Study site setting",
-         colour = "Landuse"))
+         x = "Study site setting"))
   
   return(list(species_data = landuse_df,
               landuse_plot = landuse_plot,
@@ -447,6 +450,6 @@ marginal_detection <- function(data = final_model) {
 
 marginal_detection_plots <- marginal_detection()
 
-save_plot(plot = marginal_detection_plots$detection_precipitation, filename = here("output", "Supplementary_material_9c.png"), base_width = 8, base_height = 8)
-save_plot(plot = marginal_detection_plots$detection_moon, filename = here("output", "Supplementary_material_9d.png"), base_width = 8, base_height = 8)
-save_plot(plot = marginal_detection_plots$detection_trap_nights, filename = here("output", "Supplementary_material_9e.png"), base_width = 8, base_height = 8)
+save_plot(plot = marginal_detection_plots$detection_precipitation, filename = here("output", "Supplementary_Figure_6a.png"), base_width = 8, base_height = 8)
+save_plot(plot = marginal_detection_plots$detection_moon, filename = here("output", "Supplementary_Figure_6b.png"), base_width = 8, base_height = 8)
+save_plot(plot = marginal_detection_plots$detection_trap_nights, filename = here("output", "Supplementary_Figure_6c.png"), base_width = 8, base_height = 8)

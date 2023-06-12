@@ -29,16 +29,36 @@ sle_sf <- geodata::gadm(country = "SLE", level = 2, path = here("data", "geodata
 fig_1_palette <- c(village_palette, "#FFFFFF")
 names(fig_1_palette) <- c(names(village_palette)[1:4], "poi")
 
-poi <- tibble(name = c("Freetown", "Bo", "Kenema", "Baiama", "Lalehun", "Lambayama", "Seilama"),
-              cat = c("poi", "poi", "poi", "Baiama", "Lalehun", "Lambayama", "Seilama"),
-              lat = c(8.48708717953912, 7.966794221623807, 7.876161956810467, 7.837529372181356, 8.197392257077409, 7.850593096948891, 8.12230048178563),
-              lon = c(-13.2356631741985, -11.740987026160457, -11.190811585001954, -11.268407665149846, -11.08032958100431, -11.196939025872055, -11.1935976318381)) %>%
+poi <- tibble(name = c("Kenema", "Baiama", "Lalehun", "Lambayama", "Seilama"),
+              cat = c("poi", "Baiama", "Lalehun", "Lambayama", "Seilama"),
+              lat = c(7.876161956810467, 7.837529372181356, 8.197392257077409, 7.850593096948891, 8.12230048178563),
+              lon = c(-11.190811585001954, -11.268407665149846, -11.08032958100431, -11.196939025872055, -11.1935976318381)) %>%
   st_as_sf(coords = c("lon", "lat"), crs = default_CRS)
 
-sl_map <- ggplot() + 
-  geom_sf(data = sle_sf, fill = "grey") +
+
+# Focus map on Kenema
+kenema_map <- get_googlemap(st_coordinates(poi %>% filter(name == "Kenema"))[1, ], zoom = 9, maptype = "satellite", scale = 2) %>%
+  rast() %>%
+  mask(vect(sle_sf %>%
+              filter(str_detect(NAME_2, "Kenema"))))
+
+zoom_kenema <- sle_sf %>%
+  filter(str_detect(NAME_2, "Kenema")) %>% st_bbox()
+
+sle_map <- ggplot() +
+  geom_sf(data = sle_sf) +
   geom_sf(data = sle_sf %>%
-            filter(str_detect(NAME_2, "Kenema")), fill = "#FFD580") +
+            filter(str_detect(NAME_2, "Kenema")), fill = "orange") +
+  geom_sf(data = zoom_kenema %>%
+            st_as_sfc(), fill = NA, colour = "black", size = 4)  +
+  guides(fill = "none") +
+  theme_void()
+
+study_map <- ggplot() + 
+  geom_sf(data = sle_sf, fill = "grey", colour = "black") +
+  geom_spatraster_rgb(data = kenema_map) +
+  geom_sf(data = sle_sf %>%
+            filter(str_detect(NAME_2, "Kenema")), fill = NA, colour = "white") +
   geom_sf(data = poi, size = 0.8) +
   ggrepel::geom_label_repel(data = poi, aes(label = name, geometry = geometry, fill = cat), stat = "sf_coordinates", min.segment.length = 0) +
   labs(x = element_blank(),
@@ -47,18 +67,20 @@ sl_map <- ggplot() +
   theme_bw() +
   ggspatial::annotation_north_arrow(style = north_arrow_minimal()) +
   ggspatial::annotation_scale(location = "br") +
+  coord_sf(xlim = c(zoom_kenema[1], zoom_kenema[3]), ylim = c(zoom_kenema[2], zoom_kenema[4])) +
   guides(fill = "none") +
   labs(title = "A)")
 
 sl_inset_map <- ggdraw() +
-  draw_plot(sl_map) +
-  draw_plot(africa_map, x = 0.7, y = 0.65, width = 0.3, height = 0.3)
+  draw_plot(study_map) +
+  draw_plot(africa_map, x = 0.7, y = 0.7, width = 0.3, height = 0.3) +
+  draw_plot(sle_map, x = 0.7, y = 0.4, width = 0.3, height = 0.3)
 
-ggsave2(plot = sl_inset_map, filename = here("output", "Figure_1a.png"), dpi = 300, width = 7, height = 6)
+ggsave2(plot = sl_inset_map, filename = here("output", "Figure_1a.png"), dpi = 300, width = 8, height = 6)
 ggsave2(plot = ggdraw() +
           draw_plot(sl_map +
                       labs(title = element_blank())) +
-          draw_plot(africa_map, x = 0.7, y = 0.65, width = 0.3, height = 0.3), filename = here("output", "Figure_1a.svg"), dpi = 300, width = 7, height = 6)
+          draw_plot(africa_map, x = 0.7, y = 0.7, width = 0.3, height = 0.3), filename = here("output", "Figure_1a.svg"), dpi = 300, width = 7, height = 6)
 
 
 # Trap timeline -----------------------------------------------------------
@@ -69,10 +91,6 @@ timeline <- trap_data %>%
   tibble() %>%
   select(-geometry) %>%
   filter(village != "bambawo") %>%
-  mutate(visit = case_when(str_detect(village, "baiama|lambayama") & visit %in% c(1:4) ~ as.numeric(visit) + 2,
-                           TRUE ~ as.numeric(visit))) %>%
-  mutate(grid_number = case_when(str_detect(village, "seilama|lalehun") & visit %in% c(1:2) & as.character(grid_number) == 6 ~ as.character(7),
-                                 TRUE ~ as.character(grid_number))) %>%
   group_by(village, visit, grid_number, trap_number) %>%
   summarise(tn = n(),
             date_set = min(date_set)) %>%
@@ -80,36 +98,86 @@ timeline <- trap_data %>%
   summarise(tn = sum(tn),
             date_set = min(date_set)) %>%
   ungroup() %>%
-  mutate(date_set = case_when(date_set == as.Date("2022-01-18") ~ as.Date("2022-01-21"),
-                              date_set == as.Date("2022-04-12") & village == "lalehun" ~ as.Date("2022-04-17"),
-                              date_set == as.Date("2022-04-28") & village == "lalehun" ~ as.Date("2022-08-08"),
-                              date_set == as.Date("2022-10-18") ~ as.Date("2022-08-24"),
-                              date_set == as.Date("2022-10-29") & village == "seilama" ~ as.Date("2022-11-06"),
-                              TRUE ~ date_set),
-         village = str_to_title(village))
+  mutate(village = str_to_title(village),
+         date_set = case_when(date_set == as.Date("2023-02-05") ~ as.Date("2023-02-08"),
+                              TRUE ~ date_set))
 
 timeline_plot <- ggplot(timeline) +
-  geom_rect(aes(xmin = as.Date("2022-05-01"), xmax = as.Date("2022-11-01"), ymin = -Inf, ymax = Inf), fill = "lightblue", alpha = 0.2) +
-  geom_rect(aes(xmin = as.Date("2021-05-01"), xmax = as.Date("2021-11-01"), ymin = -Inf, ymax = Inf), fill = "lightblue", alpha = 0.2) +
+  geom_rect(aes(xmin = as.Date("2023-05-01"), xmax = as.Date("2023-11-01"), ymin = -Inf, ymax = Inf), fill = "#e2F3FF", alpha = 0.1) +
+  geom_rect(aes(xmin = as.Date("2022-05-01"), xmax = as.Date("2022-11-01"), ymin = -Inf, ymax = Inf), fill = "#e2F3FF", alpha = 0.1) +
+  geom_rect(aes(xmin = as.Date("2021-05-01"), xmax = as.Date("2021-11-01"), ymin = -Inf, ymax = Inf), fill = "#e2F3FF", alpha = 0.1) +
   geom_rect(aes(xmin = date_set, xmax = date_set + 4, ymin = 0, ymax = tn, fill = village)) +
-  scale_fill_manual(values = village_palette) +
+  coord_cartesian(xlim = c(as.Date("2020-11-01"), as.Date("2023-05-01"))) +
+  scale_fill_manual(values = fig_1_palette) +
   theme_bw() +
   labs(x = "Visit date",
        y = "Trap nights",
        fill = "Village") +
-  labs(title = "F)")
+  labs(title = "B)")
 
-save_plot(plot = timeline_plot, filename = here("output", "Figure_1f.png"), base_height = 3, base_width = 6)
+save_plot(plot = timeline_plot, filename = here("output", "Figure_1b.png"), base_height = 3, base_width = 8)
+
+save_plot(plot = plot_grid(plotlist = list(sl_inset_map,
+                                    timeline_plot),
+                    ncol = 1,
+                    rel_heights = c(8, 2)),
+          filename = here("output", "Figure_1_combined.png"),
+          base_height = 10,
+          base_width = 8)
+
+
+### Sort out the remaining locations for the supplementary
+
 # Trap locations ----------------------------------------------------------
 
 fig_1_df <- read_rds(here("data", "observed_data", "fig_1_df.rds"))
 
+bbox <- list()
+
+bbox$baiama <- st_bbox(st_buffer(fig_1_df[[1]], dist = 100))
+bbox$lalehun <- st_bbox(st_buffer(fig_1_df[[2]], dist = 100))
+bbox$lambayama <- st_bbox(st_buffer(fig_1_df[[3]], dist = 100))
+bbox$seilama <- st_bbox(st_buffer(fig_1_df[[4]], dist = 100))
+
 bg <- list()
 
-bg$baiama <- rast(here("data", "observed_data", "baiama_raster.tif"))
-bg$lalehun <- rast(here("data", "observed_data", "lalehun_raster.tif"))
-bg$lambayama <- rast(here("data", "observed_data", "lambayama_raster.tif"))
-bg$seilama <- rast(here("data", "observed_data", "seilama_raster.tif"))
+bg$baiama <- get_googlemap(c(-11.26, 7.832),
+                           zoom = 15,
+                           scale = 2,
+                           maptype = "satellite") %>%
+  rast() %>%
+  mask(vect(st_as_sfc(bbox$baiama) %>%
+              st_transform(crs = default_CRS)))
+
+bg$lalehun <- get_googlemap(poi %>%
+                              filter(str_detect(name, "Lalehun")) %>%
+                              st_coordinates(.),
+                            zoom = 15,
+                            scale = 2,
+                            maptype = "satellite") %>%
+  rast() %>%
+  mask(vect(st_as_sfc(bbox$lalehun) %>%
+              st_transform(crs = default_CRS)))
+
+bg$lambayama <- get_googlemap(poi %>%
+                                filter(str_detect(name, "Lambayama")) %>%
+                                st_coordinates(.),
+                              zoom = 16,
+                              scale = 2,
+                              maptype = "satellite") %>%
+  rast() %>%
+  mask(vect(st_as_sfc(bbox$lambayama) %>%
+              st_transform(crs = default_CRS)))
+
+bg$seilama <- get_googlemap(poi %>%
+                              filter(str_detect(name, "Seilama")) %>%
+                              st_coordinates(.),
+                            zoom = 16,
+                            scale = 2,
+                            maptype = "satellite") %>%
+  rast() %>%
+  mask(vect(st_as_sfc(bbox$seilama) %>%
+              st_transform(crs = default_CRS)))
 
 grids_plot <- list()
 
@@ -131,11 +199,12 @@ for(i in 1:length(fig_1_df))  {
             aes(fill = tn, colour = tn)) +
     scale_colour_viridis_c(limits = c(0, 100), direction = -1) +
     scale_fill_viridis_c(limits = c(0, 100), direction = -1) +
-    guides(colour = "none") +
     facet_wrap(~ landuse) +
     labs(fill = "Number Trap-Nights",
          title = str_to_title(unique(fig_1_df[[i]]$village))) +
-    coord_sf(expand = FALSE) +
+    coord_sf(xlim = ext(vect(st_buffer(fig_1_df[[i]], dist = 100) %>% st_transform(crs = default_CRS)))[1:2],
+             ylim = ext(vect(st_buffer(fig_1_df[[i]], dist = 100) %>% st_transform(crs = default_CRS)))[3:4],
+             expand = FALSE) +
     scale_x_continuous(breaks = breaks[[i]]$x) +
     scale_y_continuous(breaks = breaks[[i]]$y) +
     theme_bw() +
@@ -144,26 +213,14 @@ for(i in 1:length(fig_1_df))  {
 }
 
 save_plot(plot = grids_plot[[1]] +
-            labs(title = "B)") +
-            guides(fill = "none"), filename = here("output", "Figure_1b.png"), base_height = 3, base_width = 7)
+            labs(title = "A)") +
+            guides(fill = "none"), filename = here("output", "Supplementary_Figure_1a.png"), base_height = 3, base_width = 7)
 save_plot(plot = grids_plot[[2]] +
-            labs(title = "C)") +
-            guides(fill = "none"), filename = here("output", "Figure_1c.png"), base_height = 4, base_width = 6)
+            labs(title = "B)") +
+            guides(fill = "none"), filename = here("output", "Supplementary_Figure_1b.png"), base_height = 4, base_width = 6)
 save_plot(plot = grids_plot[[3]] +
-            labs(title = "D)") +
-            guides(fill = "none"), filename = here("output", "Figure_1d.png"), base_height = 3, base_width = 7)
+            labs(title = "C)") +
+            guides(fill = "none"), filename = here("output", "Supplementary_Figure_1c.png"), base_height = 3, base_width = 7)
 save_plot(plot = grids_plot[[4]] +
-            labs(title = "E)") +
-            guides(fill = "none"), filename = here("output", "Figure_1e.png"), base_height = 3, base_width = 7)
-
-combined_grids <- plot_grid(plotlist = list(grids_plot[[4]] +
-                                              theme(legend.position = "none"),
-                                            grids_plot[[2]] +
-                                              theme(legend.position = "none"),
-                                            grids_plot[[1]] +
-                                              theme(legend.position = "none"),
-                                            grids_plot[[3]] +
-                                              theme(legend.position = "none")),
-                            ncol = 2)
-
-save_plot(plot = combined_grids, filename = here("output", "grid_locations.png"), base_height = 8)
+            labs(title = "D)") +
+            guides(fill = "none"), filename = here("output", "Supplementary_Figure_1d.png"), base_height = 3, base_width = 7)

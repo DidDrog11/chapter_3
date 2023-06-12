@@ -249,7 +249,9 @@ correlation_plot <- correlation_df %>%
   labs(fill = "Strength of correlation",
        x = "Species",
        y = "Species") +
-  theme_bw()
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.key.width = unit(1.5, units = "cm"))
 
 save_plot(correlation_plot, filename = here("output", "Figure_5.png"), base_height = 12, base_width = 8)
 

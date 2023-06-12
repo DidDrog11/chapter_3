@@ -330,9 +330,11 @@ fig_2 <- fig_2_df %>%
   labs(y = "Species",
        fill = "Detection rate \nper 1,000 trap nights",
        x = "Landuse") +
-  theme_bw()
+  theme_bw() +
+  theme(legend.position = "bottom",
+        legend.key.width = unit(3, "cm"))
 
-save_plot(plot = fig_2, filename = here("output", "Figure_2.png"), base_width = 13, base_height = 7)
+save_plot(plot = fig_2, filename = here("output", "Figure_2.png"), base_width = 13, base_height = 9)
 
 fig_2_by_landuse <- detections %>%
   left_join(sites, detections,
@@ -412,8 +414,8 @@ season_detection_landuse <- detections %>%
        x = "Season",
        title = "Landuse level species detection by season")
 
-save_plot(plot = season_detection, filename = here("output", "Supplementary_material_7a.png"), base_width = 6, base_height = 7)
-save_plot(plot = season_detection_landuse, filename = here("output", "Supplementary_material_7b.png"), base_width = 6, base_height = 7)
+save_plot(plot = season_detection, filename = here("output", "Supplementary_material_5a.png"), base_width = 6, base_height = 7)
+save_plot(plot = season_detection_landuse, filename = here("output", "Supplementary_material_5b.png"), base_width = 8, base_height = 7)
 
 # Species diversity -------------------------------------------------------
 
@@ -540,7 +542,7 @@ table_1a <- richness_combined %>%
 write_rds(table_1a, here("output", "table_1a.rds"))
 
 
-# Supplementary Material 5 ------------------------------------------------
+# Supplementary Figure 3 ------------------------------------------------
 
 # Species accumulation graphs for supplementary village level
 baiama_accum <- richness %>%
@@ -590,10 +592,11 @@ combined_accumulation <- tibble(Village = c(rep("Baiama", length(baiama_accum$si
 accumulation_plot <- ggplot(combined_accumulation) +
   geom_line(aes(x = Sites, y = Richness, colour = Village)) +
   geom_ribbon(aes(x = Sites, ymin = Richness - sd, ymax = Richness + sd, colour = Village, fill = Village), alpha = 0.2) +
-  annotate("text", x = c(360, 610, 440, 620), y = c(9, 8.2, 6, 12.1), label = unique(combined_accumulation$Village)) +
+  annotate("text", x = c(320, 660, 450, 620), y = c(10, 13, 6, 14), label = unique(combined_accumulation$Village)) +
   scale_colour_manual(values = village_palette) +
   scale_fill_manual(values = village_palette) +
-  theme_bw()
+  theme_bw() +
+  theme(legend.position = "none")
 
 # Species accumulation graphs for supplementary village level and landuse
 baiama_accum_landuse <- richness %>%
@@ -607,7 +610,7 @@ baiama_accum_landuse <- richness %>%
   lapply(., function(x) x %>%
            select(-landuse) %>%
            specaccum(comm = ., method = "exact"))
-names(baiama_accum_landuse) <- c("agriculture", "forest", "village")
+names(baiama_accum_landuse) <- c("forest", "agriculture", "village")
 
 lalehun_accum_landuse <- richness %>%
   filter(village == "lalehun") %>%
@@ -620,7 +623,7 @@ lalehun_accum_landuse <- richness %>%
   lapply(., function(x) x %>%
            select(-landuse) %>%
            specaccum(comm = ., method = "exact"))
-names(lalehun_accum_landuse) <- c("agriculture", "forest", "village")
+names(lalehun_accum_landuse) <- c("forest", "agriculture", "village")
 
 lambayama_accum_landuse <- richness %>%
   filter(village == "lambayama") %>%
@@ -647,7 +650,7 @@ seilama_accum_landuse <- richness %>%
   lapply(., function(x) x %>%
            select(-landuse) %>%
            specaccum(comm = ., method = "exact"))
-names(seilama_accum_landuse) <- c("agriculture", "forest", "village")
+names(seilama_accum_landuse) <- c("forest", "agriculture", "village")
 
 village_landuse_accumulation <- bind_rows(
   tibble(Sites = c(baiama_accum_landuse$agriculture$sites,
@@ -709,7 +712,9 @@ village_landuse_accumulation <- bind_rows(
                 seilama_accum_landuse$village$sd)),
 )
 
-accumulation_plot_village_landuse <- ggplot(village_landuse_accumulation) +
+accumulation_plot_village_landuse <- village_landuse_accumulation %>%
+  mutate(Landuse = factor(Landuse, levels = c("Forest", "Agriculture", "Village"))) %>%
+  ggplot() +
   geom_line(aes(x = Sites, y = Richness, colour = Village)) +
   geom_ribbon(aes(x = Sites, ymin = Richness - sd, ymax = Richness + sd, colour = Village, fill = Village), alpha = 0.2) +
   facet_wrap(~ Landuse) +
@@ -717,8 +722,8 @@ accumulation_plot_village_landuse <- ggplot(village_landuse_accumulation) +
   scale_fill_manual(values = village_palette) +
   theme_bw()
 
-save_plot(plot = accumulation_plot, base_width = 10, base_height = 8, filename = here("output", "Supplementary_material_5a.png"))
-save_plot(plot = accumulation_plot_village_landuse, base_width = 10, base_height = 8, filename = here("output", "Supplementary_material_5b.png"))
+save_plot(plot = accumulation_plot, base_width = 10, base_height = 8, filename = here("output", "Supplementary_material_3a.png"))
+save_plot(plot = accumulation_plot_village_landuse, base_width = 10, base_height = 8, filename = here("output", "Supplementary_material_3b.png"))
 
 # Discussion description --------------------------------------------------
 # Trap success in buildings, village and other for comparison
