@@ -77,11 +77,6 @@ sl_inset_map <- ggdraw() +
   draw_plot(sle_map, x = 0.7, y = 0.4, width = 0.3, height = 0.3)
 
 ggsave2(plot = sl_inset_map, filename = here("output", "Figure_1a.png"), dpi = 300, width = 8, height = 6)
-ggsave2(plot = ggdraw() +
-          draw_plot(sl_map +
-                      labs(title = element_blank())) +
-          draw_plot(africa_map, x = 0.7, y = 0.7, width = 0.3, height = 0.3), filename = here("output", "Figure_1a.svg"), dpi = 300, width = 7, height = 6)
-
 
 # Trap timeline -----------------------------------------------------------
 trap_data <- read_rds(here("data", "input", "combined_data.rds"))
@@ -102,11 +97,13 @@ timeline <- trap_data %>%
          date_set = case_when(date_set == as.Date("2023-02-05") ~ as.Date("2023-02-08"),
                               TRUE ~ date_set))
 
+rain_season <- tibble(season = "rainy",
+                      date_start = c(as_date("2021-05-01"), as_date("2022-05-01"), as_date("2023-05-01")),
+                      date_end = c(as_date("2021-11-01"), as_date("2022-11-01"), as_date("2023-11-01")))
+
 timeline_plot <- ggplot(timeline) +
-  geom_rect(aes(xmin = as.Date("2023-05-01"), xmax = as.Date("2023-11-01"), ymin = -Inf, ymax = Inf), fill = "#e2F3FF", alpha = 0.1) +
-  geom_rect(aes(xmin = as.Date("2022-05-01"), xmax = as.Date("2022-11-01"), ymin = -Inf, ymax = Inf), fill = "#e2F3FF", alpha = 0.1) +
-  geom_rect(aes(xmin = as.Date("2021-05-01"), xmax = as.Date("2021-11-01"), ymin = -Inf, ymax = Inf), fill = "#e2F3FF", alpha = 0.1) +
   geom_rect(aes(xmin = date_set, xmax = date_set + 4, ymin = 0, ymax = tn, fill = village)) +
+  geom_rect(data = rain_season, aes(xmin = date_start, xmax = date_end, ymin = 0, ymax = Inf), fill = "orange", alpha = 0.1) +
   coord_cartesian(xlim = c(as.Date("2020-11-01"), as.Date("2023-05-01"))) +
   scale_fill_manual(values = fig_1_palette) +
   theme_bw() +

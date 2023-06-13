@@ -50,6 +50,8 @@ sites <- combined_data$trap_data %>%
   mutate(trap_easting = st_coordinates(geometry)[, 1],
          trap_northing = st_coordinates(geometry)[, 2])
 
+write_rds(sites, here("data", "data_for_export", "chapter_4_extract.rds"))
+
 assign_traps_to_cells <- function(all_sites = sites) {
   
   # create list where each element is a grid from a village containing all  #

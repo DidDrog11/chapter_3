@@ -43,7 +43,7 @@ SL_UTM <- "EPSG:32629"
 
 village_order <- c("baiama","lalehun", "lambayama", "seilama")
 
-village_palette <- c("#bb66cc", "#CC6677", "#77cc66", "#888888")
+village_palette <- c("#88CCEE", "#CC6677", "#DDCC77", "#888888")
 names(village_palette) <-  c("Lalehun", "Seilama", "Lambayama", "Baiama")
 
 landuse_palette <- c("#00913A", "#FEC44F", "#A13B9E")

@@ -414,7 +414,7 @@ season_detection_landuse <- detections %>%
        x = "Season",
        title = "Landuse level species detection by season")
 
-save_plot(plot = season_detection, filename = here("output", "Supplementary_material_5a.png"), base_width = 6, base_height = 7)
+save_plot(plot = season_detection, filename = here("output", "Supplementary_material_5a.png"), base_width = 9, base_height = 7)
 save_plot(plot = season_detection_landuse, filename = here("output", "Supplementary_material_5b.png"), base_width = 8, base_height = 7)
 
 # Species diversity -------------------------------------------------------
